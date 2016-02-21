@@ -33,10 +33,16 @@ end
 
 include("t_test.jl")
 include("get_VAR1_rep.jl")
-export VAR, t_test, get_VAR1_rep
+include("get_VAR_lag_length.jl")
+include("irf.jl")
+export VAR, t_test, get_VAR1_rep, get_VAR_lag_length, irf
 end # end of the module
 
-# Example
-V = VAR(rand(100,4),2,true)
-T = t_test(V)
-get_VAR1_rep(V)
+# Example VAR K=4 T=100
+using VARs
+data = rand(100,4)
+p = get_VAR_lag_length(data,12,"aic",true) # select lag-length using aic, bic, hq, aicc
+V = VAR(data,p,true) # fit a VAR model to data
+T = t_test(V) # test coefficient significance
+get_VAR1_rep(V) # get companion form
+irf(V,20,true) # get impulse response function (reduce_form or cholesky)
