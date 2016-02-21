@@ -10,15 +10,15 @@ Vector autoregressive model for Julia
  - [x] HQC
 - [x] VAR(1) form
 - [x] Impulse response function
- - [ ] Identification 
-   - [x] Reduce form
-   - [x] Cholesky
-   - [ ] BQ
-   - [ ] Uligh
- - [ ] Confidence bands
-   - [ ] Asymptotic
-   - [ ] Bootstrap
-   - [ ] Bootstrap-after-bootstrap
+  - [ ] Identification 
+    - [x] Reduce form
+    - [x] Cholesky
+    - [ ] BQ
+    - [ ] Uligh
+  - [ ] Confidence bands
+    - [ ] Asymptotic
+    - [ ] Bootstrap
+    - [ ] Bootstrap-after-bootstrap
 
 ## Example
 ```
