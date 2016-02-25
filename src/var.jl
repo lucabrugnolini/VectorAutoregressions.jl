@@ -44,7 +44,7 @@ end # end of the module
 using VARs
 data = rand(100,4)
 #p = get_VAR_lag_length(data,12,"aic",true) # select lag-length using aic, bic, hq, aicc
-V = VAR(data,2,true) # fit a VAR model to data
+V = VAR(data,2,false) # fit a VAR model to data
 T = t_test(V) # test coefficient significance
 get_VAR1_rep(V) # get companion form
 irf(V,20,true) # get impulse response function (reduce_form or cholesky)

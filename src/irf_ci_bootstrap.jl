@@ -14,9 +14,9 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64)
     ur[:, V.p+1:T] = u[:, index]                  # drawing innovations
     # Recursively construct sample
     for i in (V.p+1):T
-      yr[:,i] = V.β[:,1] + ur[:,i]
+      V.i == true ? (yr[:,i] = V.β[:,1] + ur[:,i]) : (yr[:,i] = ur[:,i])
       for jj in 1:V.p
-        yr[:,i] += V.β[:,(jj-1)*K + 2:jj*K+1]*yr[:,i-jj]
+        V.i == true ? (yr[:,i] += V.β[:,(jj-1)*K + 2:jj*K+1]*yr[:,i-jj]) : (yr[:,i] += V.β[:,(jj-1)*K + 1:jj*K]*yr[:,i-jj])
       end
     end
     yr = yr'
@@ -27,6 +27,7 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64)
     Vr = VAR(yr,V.p,true)
     # Bias correction: if the largest root of the companion matrix
     # is less than 1, do BIAS correction
+    any(abs(eigvals(get_VAR1_rep(Vr))).>=1) || bias_correction(Vr)
     #if ~ any(abs(eigvals(Ar)).>=1)
     #  Ar = asybc(Ar,SIGMAr,T,K,Vr.p) #############################CHECK
     #end

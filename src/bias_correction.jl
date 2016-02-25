@@ -16,9 +16,10 @@ function bias_correction(V::VAR)
   Abias = - bias/T
   bcstab = 9           # Arbitrary default value > 1
   delta = 1            # Adjustment factor
+  bcA = cell() #### if not working remove and put bcA as global
   while bcstab >= 1
     # Adjust bias-correction proportionately
-    global bcA = A-delta*Abias
+    bcA = A-delta*Abias
     bcmod = abs(eigvals(bcA))
     any(bcmod.>= 1) ?  bcstab = 1 : bcstab = 0
     delta += - 0.01
