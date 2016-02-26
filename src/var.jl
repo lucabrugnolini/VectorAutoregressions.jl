@@ -47,6 +47,14 @@ data = rand(100,4)
 V = VAR(data,2,false) # fit a VAR model to data
 T = t_test(V) # test coefficient significance
 get_VAR1_rep(V) # get companion form
-irf(V,20,true) # get impulse response function (reduce_form or cholesky)
+irf = irf(V,20,true) # get impulse response function (reduce_form or cholesky)
 bias_correction(V)
-irf_ci_bootstrap(V,10,1000)
+(CIl, CIh) = irf_ci_bootstrap(V,20,1000)
+
+# Plot example
+using PyPlot
+subplot(221); plot(irf[1,:]'); hold(true); plot(CIl[1,:]', color = "red"); hold(true); plot(CIh[1,:]', color = "red"); title("shock 1, variable 1")
+subplot(222); plot(irf[2,:]'); hold(true); plot(CIl[2,:]', color = "red"); hold(true); plot(CIh[2,:]', color = "red"); title("shock 2, variable 1")
+subplot(223); plot(irf[3,:]'); hold(true); plot(CIl[3,:]', color = "red"); hold(true); plot(CIh[3,:]', color = "red"); title("shock 3, variable 1")
+subplot(224); plot(irf[4,:]'); hold(true); plot(CIl[4,:]', color = "red"); hold(true); plot(CIh[4,:]', color = "red"); title("shock 4, variable 1")
+suptitle("IRF")

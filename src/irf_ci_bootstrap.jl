@@ -42,6 +42,7 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64)
     CILv[:,i] = quantile(vec(IRFrmat[:,i]),0.025)
     CIHv[:,i] = quantile(vec(IRFrmat[:,i]),0.975)
   end
-  CI = [CILv; CIHv]
-  return CI
+  CIL  = reshape(CILv',H+1,K^2)';
+  CIH  = reshape(CIHv',H+1,K^2)';
+  return CIL, CIH
 end
