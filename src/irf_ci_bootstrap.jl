@@ -1,4 +1,4 @@
-function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64)
+function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64, i::Bool=true)
 
   (T,K) = size(V.Y')
   IRFrmat = zeros(nrep, K^2*(H+1))
@@ -27,7 +27,7 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64)
     Vr = VAR(yr,V.p,true)
     # Bias correction: if the largest root of the companion matrix
     # is less than 1, do BIAS correction
-    any(abs(eigvals(get_VAR1_rep(Vr))).>=1) || bias_correction(Vr)
+    i = true && (any(abs(eigvals(get_VAR1_rep(Vr))).>=1) || bias_correction(Vr))
     #if ~ any(abs(eigvals(Ar)).>=1)
     #  Ar = asybc(Ar,SIGMAr,T,K,Vr.p) #############################CHECK
     #end
