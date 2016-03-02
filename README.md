@@ -20,10 +20,10 @@ Vector autoregressive model for Julia
     - [x] Bootstrap
     - [x] Bootstrap-after-bootstrap
    - [ ] Local projection IRFs
-    - [ ] Lag-length selection
-    - [ ] Confidence bands
-      - [ ] Standard
-      - [ ] Bootstrap
+     - [ ] Lag-length selection
+     - [ ] Confidence bands
+       - [ ] Standard
+        - [ ] Bootstrap
 
 ## Example
 ```
