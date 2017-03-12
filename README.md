@@ -15,6 +15,7 @@ Vector autoregressive model for Julia
     - [x] Cholesky
     - [ ] BQ
     - [ ] Uligh
+    - [ ] HFI
   - [x] Confidence bands
     - [x] Asymptotic
     - [x] Bootstrap
