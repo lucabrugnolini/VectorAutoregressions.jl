@@ -1,4 +1,4 @@
-# VAR
+# VAR.jl
 Vector autoregressive model for Julia
 
 ## Status
