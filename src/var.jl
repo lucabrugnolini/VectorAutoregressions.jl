@@ -161,28 +161,7 @@ end
 col_mean(x::Array) = mean(x,2)
 test_bias_correction(x::Array) =  any(abs.(eigvals(x)).<1)
 
-function get_boot_ci(V::VAR,u::Array64,mIRFbc::Array,nrep::Int64)
-    (K,T) = size(V.Y)
-    @inbounds for j = 1:nrep
-        # Draw block of initial pre-sample values
-        yr = zeros(K,T)                                       # bootstrap data
-        ur = zeros(K,T)                             # bootstrap innovations
-        iDraw = get_boot_init_int_draw(T,V.p)            # position of initial draw
-        yr[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]                   # drawing pre-sample obs
-        # Draw innovations
-        vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
-        ur[:, V.p+1:T] = u[:,vDraw]                  # drawing innovations
-        # Recursively construct sample
-        build_sample!(V,yr,ur)
-        yr = transpose(yr .- col_mean(yr)) # demean yr bootstrap data
-        #pr = V.p # also using lag length selection
-        Vr = VAR(yr,V.p,true)
-        IRFr = irf(Vr, H, true) ##############PROBLEM HERE
-        mIRFbc[j,:] = vec(IRFr')'
-    end                              # end bootstrap
-end
-
-function get_boot_ci(V::VAR,u::Array,mIRFbc::Array,nrep::Int64, bDo_bias_corr::Bool)
+function get_boot_ci!(V::VAR,u::Array,mIRFbc::Array,nrep::Int64, bDo_bias_corr::Bool)
     (K,T) = size(V.Y)
     @inbounds for j = 1:nrep
         # Draw block of initial pre-sample values
@@ -251,24 +230,26 @@ function get_proportional_bias_corr!(mBcA::Array,mVar1::Array,Abias::Array;iBc_s
     return mBcA
 end
 
-function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64, i::Bool=true)
+function get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+    N = size(mIRFbc,2)
+    mCILv = zeros(1,N)
+    mCIHv = zeros(1,N)
+    [mCILv[:,i] = quantile(vec(mIRFbc[:,i]),0.025) for i = 1:N]
+    [mCIHv[:,i] = quantile(vec(mIRFbc[:,i]),0.975) for i = 1:N]
+    mCIL  = reshape(CILv',H+1,K^2)'
+    mCIH  = reshape(CIHv',H+1,K^2)'
+    return mCIL, mCIH
+end
+
+function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64; bDo_bias_corr::Bool=true)
     (K,T) = size(V.Y)
     iScale_ϵ = sqrt((T-V.p)/(T-V.p-K*V.p-1))
     u = V.ϵ*iScale_ϵ   # rescaling residual (Stine, JASA 1987)
     mIRFbc = zeros(nrep, K^2*(H+1))
-    get_boot_ci(V,u,)
+    get_boot_ci!(V,u,mIRFbc,nrep,bDo_bias_corr)
     # Calculate 95 perccent interval endpoints
-    CILv = zeros(1,size(mIRFbc,2))
-    CIHv = zeros(1,size(mIRFbc,2))
-    for i = 1:size(mIRFbc,2)
-        CILv[:,i] = quantile(vec(mIRFbc[:,i]),0.025)
-        CIHv[:,i] = quantile(vec(mIRFbc[:,i]),0.975)
-    end
-    CIL  = reshape(CILv',H+1,K^2)';
-    CIH  = reshape(CIHv',H+1,K^2)';
-    return CIL, CIH
+    return (mCIL, mCIH) = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
 end
-chol
 
 function irf_chol(V::VAR, mVar1::Array, H::Int64)
     K = size(V.Σ,1)
