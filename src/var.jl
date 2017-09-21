@@ -1,5 +1,7 @@
 module VARs
 
+type Intercept end
+
 type VAR
     Y::Array
     X::Array
@@ -7,33 +9,76 @@ type VAR
     ϵ::Array
     Σ::Array
     p::Int64
-    i::Bool
-    VAR(Y,X,β,ϵ,Σ,p,i) = p <= 0 ? error("Lag-length error: 'p' must be strictly positive") : new(Y,X,β,ϵ,Σ,p,i)
+    inter::Intercept
+    VAR(Y,X,β,ϵ,Σ,p,inter) = p <= 0 ? error("Lag-length error: 'p' must be strictly positive") : new(Y,X,β,ϵ,Σ,p,inter)
 end
 
-function VAR(y::Array,p::Int64, i::Bool=true)
-    (Y,X,β,ϵ,Σ,p) = fit(y,p,i)
-    return VAR(Y,X,β,ϵ,Σ,p,i)
+function VAR(y::Array,p::Int64,i::Bool)
+    i == false ? ((Y,X,β,ϵ,Σ,p) = fit(y,p)) : ((Y,X,β,ϵ,Σ,p) = fit(y,p,Intercept()))
+    return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 end
 
-lagmatrix(x::Array,p::Int64) = vcat([x[:,p-i+1:end-i] for i = 1:p]...)
+function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
+    sk = 1
+    T, K = size(x)
+    k    = K*p+1
+    idx  = repmat(1:K, p)
+    X    = Array{F}(T-p, k)
+    # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
+    for j = 1+sk:(sk+K*p)
+        for i = 1:(T-p)
+            lg = round(Int, ceil((j-sk)/K)) - 1 # create index [0 0 1 1 2 2 ...etc]
+            @inbounds X[i, j] = x[i+p-1-lg, idx[j-sk]]
+        end
+    end
+    for j=1:T-p
+        @inbounds X[j,1] = 1.0
+    end
+    return X
+end
 
-function fit(y::Array,p::Int64, i::Bool=true)
+function lagmatrix{F}(x::Array{F},p::Int64)
+    sk = 1
+    T, K = size(x)
+    k    = K*p+1
+    idx  = repmat(1:K, p)
+    X    = Array{F}(T-p, k)
+    # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
+    for j = 1+sk:(sk+K*p)
+        for i = 1:(T-p)
+            lg = round(Int, ceil((j-sk)/K)) - 1 # create index [0 0 1 1 2 2 ...etc]
+            @inbounds X[i, j] = x[i+p-1-lg, idx[j-sk]]
+        end
+    end
+return X[:,2:end]
+end
+
+function fit(y::Array,p::Int64)
     (T,K) = size(y)
     T < K && error("error: there are more covariates than observation")
+    X = y
     y = transpose(y)
     Y = y[:,p+1:T]
-    X = y
-    if i == true
-        X = vcat(ones(1,T-p),lagmatrix(X,p))
-    else
-        lagmatrix(X,p)
-    end
+    X = lagmatrix(X,p)'
     β = (Y*X')/(X*X')
     ϵ = Y - β*X
     Σ = ϵ*ϵ'/(T-p-p*K-1)
     return Y,X,β,ϵ,Σ,p
 end
+
+function fit(y::Array,p::Int64,inter::Intercept)
+    (T,K) = size(y)
+    T < K && error("error: there are more covariates than observation")
+    X = y
+    y = transpose(y)
+    Y = y[:,p+1:T]
+    X = lagmatrix(X,p,inter)'
+    β = (Y*X')/(X*X')
+    ϵ = Y - β*X
+    Σ = ϵ*ϵ'/(T-p-p*K-1)
+    return Y,X,β,ϵ,Σ,p
+end
+
 
 # returns Magnus and Neudecker's commutation matrix of dimensions n by m
 function commutation(n::Int64, m::Int64)
@@ -96,11 +141,15 @@ end
 
 function get_VAR1_rep(V::VAR)
     K = size(V.Σ,1)
-    if V.i == true
-        v = [V.β[:,1]; zeros(K*(V.p-1),1)]; B = [V.β[:,2:end,]; eye(K*(V.p-1)) zeros(K*(V.p-1),K)]
-    else B = [V.β; eye(K*(V.p-1)) zeros(K*(V.p-1),K)]
-    end
-    return B
+    B = vcat(V.β, hcat(eye(K*(V.p-1)), zeros(K*(V.p-1),K))::Array{Float64,2})::Array{Float64,2}
+    B = convert(Array{Float64,2},B)
+end
+
+function get_VAR1_rep(V::VAR,inter::Intercept)
+    K = size(V.Σ,1)
+    # v = [V.β[:,1]; zeros(K*(V.p-1),1)]
+    B = vcat(V.β[:,2:end], hcat(eye(K*(V.p-1)), zeros(K*(V.p-1),K)))::Array{Float64,2}
+    B = convert(Array{Float64,2},B)
 end
 
 function irf_ci_asymptotic(V::VAR, H)
@@ -139,86 +188,108 @@ function irf_ci_asymptotic(V::VAR, H)
     return STD,COV2
 end
 
-get_boot_init_int_draw(T::Int64,p::Int64) = trunc.(Int64,(T-p+1)*rand()+1)
-get_boot_init_vector_draw(T::Int64,p::Int64) = trunc.(Int64,(T-p)*rand(T-p)+1)
+get_boot_init_int_draw(T::Int64,p::Int64) = Int64(trunc.((T-p+1)*rand()+1))
+get_boot_init_vector_draw(T::Int64,p::Int64) = Array{Int64}(trunc.((T-p)*rand(T-p)+1))
 
-function build_sample!(V::VAR,y::Array,u::Array)
-    (K,T) = size(V.Y)
-    if V.i == true
-        @inbounds for i = (V.p+1):T
-            y[:,i] = V.β[:,1] + u[:,i]
-            y[:,i] += [V.β[:,(j-1)*K + 2:j*K+1]*y[:,i-j] for j in 1:V.p][end]
-        end
-    else
-        @inbounds for i = (V.p+1):T
+function build_sample(V::VAR)
+    K,T = size(V.Y)::Tuple{Int64,Int64}
+    # Draw block of initial pre-sample values
+    y = zeros(K,T)                                       # bootstrap data
+    u = zeros(K,T)                             # bootstrap innovations
+    iDraw = get_boot_init_int_draw(T,V.p)            # position of initial draw
+    y[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]                   # drawing pre-sample obs
+    # Draw innovations
+    vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
+    u[:, V.p+1:T] = u[:,vDraw]                  # drawing innovations
+        @inbounds for i = V.p+1:T
             y[:,i] = u[:,i]
-            y[:,i] += [V.β[:,(j-1)*K + 1:j*K]*y[:,i-j] for j = 1:V.p][end]
+            for j =  1:V.p
+            y[:,i] += V.β[:,(j-1)*K + 1:j*K]*y[:,i-j]
+            end
         end
-    end
+    return y
+end
+
+function build_sample(V::VAR,inter::Intercept)
+    K,T = size(V.Y)::Tuple{Int64,Int64}
+    # Draw block of initial pre-sample values
+    y = zeros(K,T)                                       # bootstrap data
+    u = zeros(K,T)                             # bootstrap innovations
+    iDraw = get_boot_init_int_draw(T,V.p)            # position of initial draw
+    y[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]                   # drawing pre-sample obs
+    # Draw innovations
+    vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
+    u[:, V.p+1:T] = u[:,vDraw]                  # drawing innovations
+        @inbounds for i = V.p+1:T
+            y[:,i] = V.β[:,1] + u[:,i]
+            for j =  1:V.p
+            y[:,i] += V.β[:,(j-1)*K + 2:j*K+1]*y[:,i-j]
+            end
+        end
     return y
 end
 
 col_mean(x::Array) = mean(x,2)
 test_bias_correction(x::Array) =  any(abs.(eigvals(x)).<1)
 
-function get_boot_ci!(V::VAR,u::Array,mIRFbc::Array,nrep::Int64, bDo_bias_corr::Bool)
-    (K,T) = size(V.Y)
+function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool)
+    K,T = size(V.Y)::Tuple{Int64,Int64}
+    mIRFbc = zeros(nrep, K^2*(H+1))
     @inbounds for j = 1:nrep
-        # Draw block of initial pre-sample values
-        yr = zeros(K,T)                                       # bootstrap data
-        ur = zeros(K,T)                             # bootstrap innovations
-        iDraw = get_boot_init_int_draw(T,V.p)            # position of initial draw
-        yr[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]                   # drawing pre-sample obs
-        # Draw innovations
-        vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
-        ur[:, V.p+1:T] = u[:,vDraw]                  # drawing innovations
         # Recursively construct sample
-        build_sample!(V,yr,ur)
-        yr = transpose(yr .- col_mean(yr)) # demean yr bootstrap data
+        yr = build_sample(V,V.inter)
+        yr = (yr .- col_mean(yr))'  # demean yr bootstrap data
         #pr = V.p # also using lag length selection
         Vr = VAR(yr,V.p,true)
         # Bias correction: if the largest root of the companion matrix
         # is less than 1, do BIAS correction
-        mVar1 = get_VAR1_rep(Vr)
-        bBias_corr_test = test_bias_correction(mV1)
+        mVar1 = get_VAR1_rep(Vr,V.inter)::Array{Float64,2}
+        bBias_corr_test = test_bias_correction(mVar1)
         if all([bDo_bias_corr, bBias_corr_test])
             mVar1 = bias_correction(Vr,mVar1)
         end
         mIRF = irf_chol(Vr,mVar1,H)
-        mIRFbc[j,:] = transpose(vec(transpose(mIRF)))
-    end                              # end bootstrap
+        mIRFbc[j,:] = vec(mIRF')'
+    end                     # end bootstrap
+    return mIRFbc
 end
 
 function get_companion_vcv(V::VAR)
-    (K,T) = size(V.Y)
-    mSigma = [V.Σ zeros(K,K*V.p-K); zeros(K*V.p-K,K*V.p)]
+    K,T = size(V.Y)::Tuple{Int64,Int64}
+    mSigma = vcat(hcat(V.Σ, zeros(K,K*V.p-K)), zeros(K*V.p-K,K*V.p))::Array{Float64,2}
+    mSigma = convert(Array{Float64,2},mSigma)
 end
 
 function get_sigma_y(V::VAR, mVar1::Array, mSigma::Array)
-    vSigma = (eye((K*V.p)^2)-kron(mVar1,mVar1))\vec(mSigma)    # Lutkepohl p.29 (2.1.39)
-    return mSigma_y = reshape(vSigma, K*V.p, K*V.p)
+    K,T = size(V.Y)::Tuple{Int64,Int64}
+    vSigma = (eye((K*V.p)^2)::Array{Float64,2}-kron(mVar1,mVar1)::Array{Float64,2})\vec(mSigma)::Vector{Float64}    # Lutkepohl p.29 (2.1.39)
+    mSigma_y = reshape(vSigma, K*V.p::Int64, K*V.p::Int64)::Array{Float64,2}
+    return convert(Array{Float64,2},mSigma_y)
 end
 
 function get_bias(mSigma::Array,mSigma_y::Array,B::Array,I::Array,mSum_eigen::Array)
-    return mBias= mSigma*(inv(I - B) + B/(I-B^2) + mSum_eigen)/(mSigma_y)
+    return mBias = mSigma*(inv(I - B) + B/(I-B^2) + mSum_eigen)/(mSigma_y)
 end
 
 # Bias-correction Pope (1990)
 function bias_correction(V::VAR,mVar1::Array)
-    (K,Y) = size(V.Y)
+    K,Y = size(V.Y)::Tuple{Int64,Int64}
     mSigma = get_companion_vcv(V)
     mSigma_y = get_sigma_y(V,mVar1,mSigma)
     I = eye(K*V.p, K*V.p)
     B = mVar1'
     vEigen = eigvals(mVar1)
-    mSum_eigen = [vEigen[h].\(I - vEigen[h]*B) for h = 1:K*V.p][end]
+    mSum_eigen = zeros(K*V.p,K*V.p)
+    for h = 1:K*V.p
+    mSum_eigen += vEigen[h].\(I - vEigen[h]*B)
+    end
     mBias = get_bias(mSigma,mSigma_y,B,I,mSum_eigen)
-    mAbias = -bias/T
-    mBcA = similar(mVar1)
-    return mBcA = get_proportional_bias_corr!(mBcA,mVar1,Abias)
+    mAbias = -mBias/T
+    return mBcA = get_proportional_bias_corr(mVar1,mAbias)
 end
 
-function get_proportional_bias_corr!(mBcA::Array,mVar1::Array,Abias::Array;iBc_stab::Int64 = 9, iδ::Int64 = 1)
+function get_proportional_bias_corr(mVar1::Array,Abias::Array;iBc_stab::Int64 = 9, iδ::Int64 = 1)
+    mBcA = zeros(size(mVar1))
     while iBc_stab >= 1
         # Adjust bias-correction proportionately
         mBcA = real(mVar1-iδ*Abias)
@@ -242,21 +313,23 @@ function get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
 end
 
 function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64; bDo_bias_corr::Bool=true)
-    (K,T) = size(V.Y)
+    K,T = size(V.Y)::Tuple{Int64,Int64}
     iScale_ϵ = sqrt((T-V.p)/(T-V.p-K*V.p-1))
     u = V.ϵ*iScale_ϵ   # rescaling residual (Stine, JASA 1987)
-    mIRFbc = zeros(nrep, K^2*(H+1))
-    get_boot_ci!(V,u,mIRFbc,nrep,bDo_bias_corr)
+    mIRFbc = get_boot_ci(V,H,nrep,bDo_bias_corr)
     # Calculate 95 perccent interval endpoints
     return (mCIL, mCIH) = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
 end
 
 function irf_chol(V::VAR, mVar1::Array, H::Int64)
     K = size(V.Σ,1)
-    mSigma = full(cholfact(V.Σ,:L))  # Cholesky or reduced form
+    mSigma = full(cholfact(V.Σ,:L))::Array  # Cholesky or reduced form
     J = [eye(K,K) zeros(K,K*(V.p-1))]
-    mIRF = reshape((J*mVar1^0*J'*mSigma)',K^2,1)
-    mIRF = hcat(mIRF, hcat([reshape((J*mVar1^i*J'*mSigma)',K^2,1) for i = 1:H]...))
+    mIRF = zeros(K^2,H+1)
+    mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
+    for i = 1:H
+    mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
+    end
     return mIRF
 end
 
@@ -264,8 +337,11 @@ function irf_reduce_form(V::VAR, mVar1::Array, H::Int64)
     K = size(V.Σ,1)
     mSigma = eye(K,K)
     J = [eye(K,K) zeros(K,K*(V.p-1))]
-    mIRF = reshape((J*mVar1^0*J'*mSigma)',K^2,1)
-    mIRF = hcat(mIRF, hcat([reshape((J*mVar1^i*J'*mSigma)',K^2,1) for i = 1:H]...))
+    mIRF = zeros(K^2,H+1)
+    mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
+    for i = 1:H
+    mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
+    end
     return mIRF
 end
 
@@ -284,6 +360,7 @@ function irf(VAR::VAR, H::Int64, shock::Int64, cholesky::Bool=true)
     IRFs[:,:] = IRF[shock:K:(size(IRF,1)-K+shock),:]
     return IRFs
 end
+# @code_typed irf_ci_bootstrap(V, 24, 1)
 
 function t_test(V::VAR)
     K = size(V.Σ,1)
