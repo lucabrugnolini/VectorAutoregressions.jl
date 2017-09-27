@@ -18,27 +18,51 @@ function VAR(y::Array,p::Int64,i::Bool)
     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 end
 
+abstract type CI end
+
 type IRFs
     IRF::Array
     CI::CI
 end
 
-abstract type CI end
 
 type CI_asy <: CI
-    IRF::Array
     CIl::Array
     CIh::Array
 end
 
 type CI_boot <: CI
-    IRF::Array
     CIl::Array
     CIh::Array
 end
 
-function IRFs(V::VAR,H)
-    irf_chol()
+function IRFs_a(V::VAR,H::Int64,i::Bool)
+    if i == true
+        mVar1 = get_VAR1_rep(V,V.inter)
+        mIRF = irf_chol(V, mVar1, H)
+        mStd = irf_ci_asymptotic(V, H, V.inter)
+    else
+        mVar1 = get_VAR1_rep(V)
+        mIRF = irf_chol(V, mVar1, H)
+        mStd = irf_ci_asymptotic(V, H)
+    end
+    mCIl = mIRF - 1.96.*mStd
+    mCIh = mIRF + 1.96.*mStd
+    return IRFs(mIRF,CI_asy(mCIl,mCIh))
+end
+
+function IRFs_b(V::VAR,H::Int64,nrep::Int64,i::Bool)
+    if i == true
+        mVar1 = get_VAR1_rep(V,V.inter)
+        mIRF = irf_chol(V, mVar1, H)
+        CI = irf_ci_bootstrap(V, H, nrep,V.inter)
+    else
+        mVar1 = get_VAR1_rep(V)
+        mIRF = irf_chol(V, mVar1, H)
+        CI = irf_ci_bootstrap(V, H, nrep)
+    end
+    return IRFs(mIRF,CI)
+end
 
 function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
     sk = 1
@@ -72,7 +96,7 @@ function lagmatrix{F}(x::Array{F},p::Int64)
             @inbounds X[i, j] = x[i+p-1-lg, idx[j-sk]]
         end
     end
-return X[:,2:end]
+    return X[:,2:end]
 end
 
 function fit(y::Array,p::Int64)
@@ -316,7 +340,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64)
         STD[:,h+1] = vec((reshape(diag(real(sqrt.(complex(C*SIGa*C'+Cbar*SIGsig*Cbar')/(T-V.p)))),K,K))')
         COV2[:,h+1] = vec((reshape(diag(((Cbar*SIGsig*Cbar')/(T-V.p))),K,K))')
     end
-    return STD,COV2
+    return STD
 end
 
 function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
@@ -348,7 +372,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
         STD[:,h+1] = vec((reshape(diag(real(sqrt.(complex(C*SIGa*C'+Cbar*SIGsig*Cbar')/(T-V.p)))),K,K))')
         COV2[:,h+1] = vec((reshape(diag(((Cbar*SIGsig*Cbar')/(T-V.p))),K,K))')
     end
-    return STD,COV2
+    return STD
 end
 
 get_boot_init_int_draw(T::Int64,p::Int64) = Int64(trunc.((T-p+1)*rand()+1))
@@ -364,12 +388,12 @@ function build_sample(V::VAR)
     # Draw innovations
     vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
     u[:, V.p+1:T] = V.ϵ[:,vDraw]                  # drawing innovations
-        @inbounds for i = V.p+1:T
-            y[:,i] = u[:,i]
-            for j =  1:V.p
+    @inbounds for i = V.p+1:T
+        y[:,i] = u[:,i]
+        for j =  1:V.p
             y[:,i] += V.β[:,(j-1)*K + 1:j*K]*y[:,i-j]
-            end
         end
+    end
     return y
 end
 
@@ -383,12 +407,12 @@ function build_sample(V::VAR,inter::Intercept)
     # Draw innovations
     vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
     u[:, V.p+1:T] = V.ϵ[:,vDraw]                  # drawing innovations
-        @inbounds for i = V.p+1:T
-            y[:,i] = V.β[:,1] + u[:,i]
-            for j =  1:V.p
+    @inbounds for i = V.p+1:T
+        y[:,i] = V.β[:,1] + u[:,i]
+        for j =  1:V.p
             y[:,i] += V.β[:,(j-1)*K + 2:j*K+1]*y[:,i-j]
-            end
         end
+    end
     return y
 end
 
@@ -398,7 +422,7 @@ test_bias_correction(x::Array) =  any(abs.(eigvals(x)).<1)
 function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool,inter::Intercept)
     K,T = size(V.Y)::Tuple{Int64,Int64}
     mIRFbc = zeros(nrep, K^2*(H+1))
-      @inbounds for j = 1:nrep
+    @inbounds for j = 1:nrep
         # Recursively construct sample
         yr = build_sample(V,V.inter)
         yr = (yr .- col_mean(yr))'  # demean yr bootstrap data
@@ -420,7 +444,7 @@ end
 function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool)
     K,T = size(V.Y)::Tuple{Int64,Int64}
     mIRFbc = zeros(nrep, K^2*(H+1))
-      @inbounds for j = 1:nrep
+    @inbounds for j = 1:nrep
         # Recursively construct sample
         yr = build_sample(V)
         yr = (yr .- col_mean(yr))'  # demean yr bootstrap data
@@ -466,7 +490,7 @@ function bias_correction(V::VAR,mVar1::Array)
     vEigen = eigvals(mVar1)
     mSum_eigen = zeros(K*V.p,K*V.p)
     for h = 1:K*V.p
-    mSum_eigen += vEigen[h].\(I - vEigen[h]*B)
+        mSum_eigen += vEigen[h].\(I - vEigen[h]*B)
     end
     mBias = get_bias(mSigma,mSigma_y,B,I,mSum_eigen)
     mAbias = -mBias/T
@@ -505,7 +529,8 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64; bDo_bias_corr::Bool=tru
     u = V.ϵ*iScale_ϵ   # rescaling residual (Stine, JASA 1987)
     mIRFbc = get_boot_ci(V,H,nrep,bDo_bias_corr)
     # Calculate 95 perccent interval endpoints
-    return mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+    mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+    return CI_boot(mCIL,mCIH)
 end
 
 function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64, inter::Intercept; bDo_bias_corr::Bool=true)
@@ -514,7 +539,8 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64, inter::Intercept; bDo_b
     u = V.ϵ*iScale_ϵ   # rescaling residual (Stine, JASA 1987)
     mIRFbc = get_boot_ci(V,H,nrep,bDo_bias_corr,V.inter)
     # Calculate 95 perccent interval endpoints
-    return mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+    mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+    return CI_boot(mCIL,mCIH)
 end
 
 function irf_chol(V::VAR, mVar1::Array, H::Int64)
@@ -524,7 +550,7 @@ function irf_chol(V::VAR, mVar1::Array, H::Int64)
     mIRF = zeros(K^2,H+1)
     mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
     for i = 1:H
-    mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
+        mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
     end
     return mIRF
 end
@@ -536,7 +562,7 @@ function irf_reduce_form(V::VAR, mVar1::Array, H::Int64)
     mIRF = zeros(K^2,H+1)
     mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
     for i = 1:H
-    mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
+        mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
     end
     return mIRF
 end
@@ -550,18 +576,53 @@ function t_test(V::VAR)
     return T
 end
 
-export VAR, t_test, get_VAR1_rep, get_VAR_lag_length, irf_chol_irf_reduce_form
-export irf_ci_bootstrap, duplication, commutation, elimat, irf_ci_asymptotic
+export VAR, IRFs_a, IRFs_b
 end # end of the module
 
-# Example VAR K=4 T=100
-using VARs
+# Example VAR K=2 T=100
+using VARs, Plots
+
+const T,K = 100,2
+const H = 24
+const nrep = 1000
+const p = 2
+const intercept = true
+
+y = rand(T,K)
+V = VAR(y,p,intercept)
+mIRFb = IRFs_b(V,H,nrep,intercept)
+mIRFa = IRFs_a(V,H,intercept)
+
+pIRF = plot(layout = grid(K,K))
+[plot!(pIRF, [mIRFb.CI.CIl[i,:] mIRFb.IRF[i,:] mIRFb.CI.CIh[i,:]], color = ["red" "black" "red"],
+line = [:dot :solid :dot], legend = false, subplot = i) for i in 1:K^2]
+gui(pIRF)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 data = rand(100,4)
 #p = get_VAR_lag_length(data,12,"aic",true) # select lag-length using aic, bic, hq, aicc
 V = VAR(data,2,false) # fit a VAR model to data, true unclude intercept
 irf = irf(V,20,true) # get impulse response function, true for cholesky
 (CIl, CIh) = irf_ci_bootstrap(V,20,1000, true) # true for bias correction if eig<1
 (STD, COV) = irf_ci_asymptotic(V, 20)
+
+
+
+
 
 # Plot example
 using PyPlot
