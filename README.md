@@ -27,7 +27,7 @@ Vector autoregressive model for Julia
         - [ ] Bootstrap
 
 ## Example
-```
+```julia
 using VARs
 V = VAR(Y, p, i)
 ```
