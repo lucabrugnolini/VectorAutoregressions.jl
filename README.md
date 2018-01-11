@@ -1,6 +1,13 @@
 # VAR.jl
 Vector autoregressive model for Julia
 
+## Installation
+```julia
+Pkg.clone("https://github.com/lucabrugnolini/VAR.jl")
+```
+## Introduction
+This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) model.
+
 ## Status
 - [x] Basic constructor
 - [x] Lag-length selection
