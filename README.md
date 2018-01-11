@@ -32,7 +32,7 @@ using VARs
 V = VAR(Y, p, i)
 ```
 Where `Y` is a matrix with data, `p` is the lag-length and `i` is a Boolean for including an intercept (default is true). It returns a fitted VAR(p) model with the following structure:
-```
+```julia
 type VAR
   Y::Array # dep. variables
   X::Array # covariates
