@@ -1,4 +1,5 @@
 module VARs
+using Parameters, GrowableArrays
 
 type Intercept end
 
@@ -17,6 +18,160 @@ function VAR(y::Array,p::Int64,i::Bool)
     i == false ? ((Y,X,β,ϵ,Σ,p) = fit(y,p)) : ((Y,X,β,ϵ,Σ,p) = fit(y,p,Intercept()))
     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 end
+
+@with_kw type Hyperparameter
+    λ::Range{Float64} = 0.1:0.1:1
+    τ::Range{Float64} = 10*(0.1:0.1:1)
+    ε::Float64 = 0.0001
+end
+
+function bVAR(y::Array,p::Int64,i::Bool,reps::Int64,burn::Int64,max_try::Int64,prior::Hyperparameter)
+    i == false ? ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,p,prior)) : ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,p,Intercept()))
+    return VAR(Y,X,β,ϵ,Σ,p,Intercept())
+end
+
+function get_prior(y::Array,p::Int64)
+    T,K = size(y) 
+    μ = mean(Y,1)'
+    sigmaP = Array{Float64}(0)
+    deltaP = Array{Float64}(0)
+    e0 = Array{Float64}(T-p,0)
+    for i = 1:K
+        ytemp = Y[:,i]
+        xtemp = [lagmatrix(ytemp,p) ones(length(ytemp)-p)]
+        ytemp = ytemp[1+p:end,:]
+        btemp=xtemp\ytemp
+        etemp=ytemp-xtemp*btemp
+        stemp=etemp'*etemp/length(ytemp)
+        if abs(btemp[1]) > 1
+            btemp[1] = 1
+        end
+        sigmaP = vcat(sigmaP,stemp)
+        deltaP = vcat(deltaP,btemp[1])
+        e0 = hcat(e0, etemp)
+    end
+    return μ, sigmaP, deltaP, e0 
+end
+
+function create_dummies(λ,τ,δ,ε,p,μ,σ,K)
+    if typeof(σ) == Array{Float64,2}
+        σ = σ[:,1]
+        μ = μ[:,1]
+    end
+    if λ > 0
+        if ε > 0
+            yd1 = [diagm(σ.*δ)./λ;
+            zeros(K*(p-1),K);
+            diagm(σ);
+            zeros(1,K)]
+
+            jp = diagm(1:p)
+            xd1 = [hcat(kron(jp,diagm(σ)./λ), zeros((K*p),1));
+            zeros(K,(K*p)+1);
+            hcat(zeros(1,K*p), ε)]
+        else
+            yd1 = [diagm(σ.*δ)./λ;
+            zeros(K*(p-1),K);
+            diagm(σ)]
+
+            jp = diagm(1:p);
+            xd1 = [kron(jp,diagm(σ)./λ);
+            zeros(K,(K*p))] 
+        end
+    end
+    if τ > 0
+        if ε>0
+            yd2 = diagm(δ.*μ)./τ;
+            xd2 = [kron(ones(1,p),yd2) zeros(K,1)]
+        else
+            yd2 = diagm(δ.*μ)./τ;
+            xd2 = [kron(ones(1,p),yd2)]  
+        end
+    end
+    y = vcat(yd1,yd2)
+    x = vcat(xd1,xd2)
+return y,x
+end
+
+function max_lik_var(y,x,yd,xd)
+    T,K = size(y)
+    v = size(yd,1)
+    y1 = vcat(y,yd)
+    x1 = vcat(x,xd)
+    #prior moments
+    xx0 = xd'*xd
+    invxx0 = pinv(xx0) 
+    b0 = invxx0*xd'*yd
+    v0 = size(yd,1)
+    e0 = yd-xd*b0
+    sigma0 = e0'*e0
+    #posterior moments
+    xx1 = x1'*x1
+    invxx = pinv(xx1)
+    b = invxx*x1'*y1
+    v1 = v0+T 
+    e = y1-x1*b 
+    sigma1 = e'*e
+    
+    PP = inv(eye(T)+x*invxx0*x') 
+    QQ = sigma0
+    lngam_ratio = mgamln(K,v0)-mgamln(K,v1)
+    py = -(lngam_ratio+(T*K/2)*log(pi))+0.5*K*log(det(PP))+(v0/2)*log(det(QQ))-(v1/2)*log(det(QQ+(y-x*b0)'*PP*(y-x*b0)))
+    out = py
+    return
+end
+
+
+
+
+
+
+function get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
+    K  =  size(y,2)
+    outmlik = zeros(length(p),length(λ))
+    tableL = zeros(length(p),length(λ))
+    tableP = copy(tableL)
+    tableD = copy(tableL)
+    for i = 1:length(p)
+        L = p[i]
+        Y = copy(y)
+        X = lagmatrix(y,L)
+        X = hcat(X, ones(size(X,1)))
+        Y = Y[L+1:end,:]
+        for j = 1:length(λ)
+            yd,xd  =  create_dummies(λ[j],τ[j],δ,ε,L,μ,σ,K)
+            # get marginal likelihood
+            mlik = mlikvar1(Y,X,yd,xd)
+            outmlik(i,j) = mlik
+            tableL(i,j) = L
+            tableP(i,j) = λ(j)
+            tableD(i,j) = τ(j)
+        end
+    end
+    # outmlik
+    # tableL
+    # tableP
+    id = outmlik =  = max(max(outmlik))
+    optL = tableL(id)
+    optP = tableP(id)
+    optD = tableD(id)
+    return
+end
+
+
+# Example
+# y = rand(100,3)
+# p = 4
+# λ,τ,δ,ε,p,μ,σ,K = prior.λ,prior.τ,deltaP,prior.ε,p,μ,sigmaP,K
+
+function fit_bvar(y::Array,p::Int64,prior::Hyperparameter)
+    T,K = size(y)
+    Y = copy(y)
+    μ, sigmaP, deltaP, e0  = get_prior(y,p)
+    [yd,xd] = create_dummies(prior.λ,prior.τ,deltaP,e0,L,μ,sigmaP,K)
+end
+
+
 
 abstract type CI end
 
@@ -99,6 +254,23 @@ function lagmatrix{F}(x::Array{F},p::Int64)
     return X[:,2:end]
 end
 
+function lagmatrix{F}(x::Vector{F},p::Int64)
+    sk = 1
+    T = length(x)
+    K = 1
+    k    = K*p+1
+    idx  = repmat(1:K, p)
+    X    = Array{F}(T-p, k)
+    # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
+    for j = 1+sk:(sk+K*p)
+        for i = 1:(T-p)
+            lg = round(Int, ceil((j-sk)/K)) - 1 # create index [0 0 1 1 2 2 ...etc]
+            @inbounds X[i, j] = x[i+p-1-lg, idx[j-sk]]
+        end
+    end
+    return X[:,2:end]
+end
+
 function fit(y::Array,p::Int64)
     (T,K) = size(y)
     T < K && error("error: there are more covariates than observation")
@@ -125,16 +297,15 @@ function fit(y::Array,p::Int64,inter::Intercept)
     return Y,X,β,ϵ,Σ,p
 end
 
-
 # returns Magnus and Neudecker's commutation matrix of dimensions n by m
 function commutation(n::Int64, m::Int64)
     k = reshape(kron(vec(eye(n)), eye(m)), n*m, n*m)
     return k
 end
 
-# Returns Magnus and Neudecker's duplication matrix of size n
-# VERY AMBIGUOUS FUNC
 function duplication(n::Int64)
+    # Returns Magnus and Neudecker's duplication matrix of size n
+    # VERY AMBIGUOUS FUNC
     a = tril(ones(n,n))::Array{Float64}
     i = find(a)::Vector{Int64}
     a[i] = 1:size(i,1)
@@ -148,9 +319,9 @@ function duplication(n::Int64)
     return d
 end
 
-# elimat(m) returns the elimination matrix Lm
-# The elimination matrix Lm is for any matrix F, Vech(F)=Lm Vec(F)
 function elimat(m::Int64)
+    # elimat(m) returns the elimination matrix Lm
+    # The elimination matrix Lm is for any matrix F, Vech(F)=Lm Vec(F)
     A = eye(m^2)
     L = A[1:m,:]
     for n in 2:m
