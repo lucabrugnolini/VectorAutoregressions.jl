@@ -1,5 +1,7 @@
 module VARs
 using Parameters, GrowableArrays
+# Credits
+# Kilian and Kim 2011, Cremfi 
 
 type Intercept end
 
@@ -53,9 +55,11 @@ function get_prior(y::Array,p::Int64)
     return μ, sigmaP, deltaP, e0 
 end
 
-function create_dummies(λ,τ,δ,ε,p,μ,σ,K)
+function create_dummies(λ::Float64,τ::Float64,δ::Array,ε::Float64,p::Int64,μ::Array,σ::Array,K::Int64)
     if typeof(σ) == Array{Float64,2}
         σ = σ[:,1]
+    end
+    if typeof(μ) == Array{Float64,2}
         μ = μ[:,1]
     end
     if λ > 0
@@ -64,7 +68,7 @@ function create_dummies(λ,τ,δ,ε,p,μ,σ,K)
             zeros(K*(p-1),K);
             diagm(σ);
             zeros(1,K)]
-
+            
             jp = diagm(1:p)
             xd1 = [hcat(kron(jp,diagm(σ)./λ), zeros((K*p),1));
             zeros(K,(K*p)+1);
@@ -73,24 +77,39 @@ function create_dummies(λ,τ,δ,ε,p,μ,σ,K)
             yd1 = [diagm(σ.*δ)./λ;
             zeros(K*(p-1),K);
             diagm(σ)]
-
-            jp = diagm(1:p);
+            
+            jp = diagm(1:p)
             xd1 = [kron(jp,diagm(σ)./λ);
             zeros(K,(K*p))] 
         end
     end
     if τ > 0
-        if ε>0
-            yd2 = diagm(δ.*μ)./τ;
+        if ε > 0
+            yd2 = diagm(δ.*μ)./τ
             xd2 = [kron(ones(1,p),yd2) zeros(K,1)]
         else
-            yd2 = diagm(δ.*μ)./τ;
+            yd2 = diagm(δ.*μ)./τ
             xd2 = [kron(ones(1,p),yd2)]  
         end
     end
     y = vcat(yd1,yd2)
     x = vcat(xd1,xd2)
-return y,x
+    return y,x
+end
+
+function sum_loggamma(K,v);
+    out = 0
+    for i = 1:K
+        out = out + lgamma((v+1-i)/2)
+    end
+    return out
+end
+
+function mgamln(K,v)
+    constant = (K*(K-1)/4)*log(pi)
+    term2 = sum_loggamma(K,v)
+    out = constant + term2
+    return out
 end
 
 function max_lik_var(y,x,yd,xd)
@@ -115,16 +134,12 @@ function max_lik_var(y,x,yd,xd)
     
     PP = inv(eye(T)+x*invxx0*x') 
     QQ = sigma0
+    
     lngam_ratio = mgamln(K,v0)-mgamln(K,v1)
     py = -(lngam_ratio+(T*K/2)*log(pi))+0.5*K*log(det(PP))+(v0/2)*log(det(QQ))-(v1/2)*log(det(QQ+(y-x*b0)'*PP*(y-x*b0)))
     out = py
-    return
+    return out
 end
-
-
-
-
-
 
 function get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
     K  =  size(y,2)
@@ -141,34 +156,160 @@ function get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
         for j = 1:length(λ)
             yd,xd  =  create_dummies(λ[j],τ[j],δ,ε,L,μ,σ,K)
             # get marginal likelihood
-            mlik = mlikvar1(Y,X,yd,xd)
-            outmlik(i,j) = mlik
-            tableL(i,j) = L
-            tableP(i,j) = λ(j)
-            tableD(i,j) = τ(j)
+            mlik = max_lik_var(Y,X,yd,xd)
+            outmlik[i,j] = mlik
+            tableL[i,j] = L
+            tableP[i,j] = λ[j]
+            tableD[i,j] = τ[j]
         end
     end
-    # outmlik
-    # tableL
-    # tableP
-    id = outmlik =  = max(max(outmlik))
-    optL = tableL(id)
-    optP = tableP(id)
-    optD = tableD(id)
-    return
+    id = outmlik .== maximum(maximum(outmlik))
+    optL = tableL[id]
+    optP = tableP[id]
+    optD = tableD[id]
+    return optL, optP, optD
 end
 
 
 # Example
-# y = rand(100,3)
-# p = 4
+y = rand(100,3)
+p = 4
+prior = Hyperparameter()
 # λ,τ,δ,ε,p,μ,σ,K = prior.λ,prior.τ,deltaP,prior.ε,p,μ,sigmaP,K
+reps = 100
+burnin = 10
+H = 10
+max_try = 1000
 
 function fit_bvar(y::Array,p::Int64,prior::Hyperparameter)
     T,K = size(y)
     Y = copy(y)
     μ, sigmaP, deltaP, e0  = get_prior(y,p)
-    [yd,xd] = create_dummies(prior.λ,prior.τ,deltaP,e0,L,μ,sigmaP,K)
+    λ,τ,δ,ε,p,μ,σ,K = prior.λ,prior.τ,deltaP,prior.ε,p,μ,sigmaP,K
+    optL,optP,optD = get_opt_lag_prior(Y,p,λ,τ,δ,ε,μ,σ)
+    yd,xd = create_dummies(optP[1],optD[1],deltaP,ε,Int(optL[1]),μ,sigmaP,K)
+    
+    X = lagmatrix(y,p)
+    X = hcat(X, ones(size(X,1)))
+    Y = Y[p+1:end,:]
+    
+    iT, iK = size(X)
+    
+    fsave = zeros(reps-burnin,H,K) 
+    
+    Y0 = [Y; yd]
+    X0 = [X; xd]
+    # conditional mean of the VAR coefficients
+    mstar = vec(X0\Y0) # ols on the appended data
+    xx = X0'*X0
+    ixx = xx\eye(size(xx,2))  # inv(X0'X0) to be used later in the Gibbs sampling lgorithm
+    sigma = eye(K) # starting value for sigma
+    beta0 = vec(X0\Y0)
+    igibbs = 1
+    jgibbs = 0
+    
+    while jgibbs < reps-burnin
+        
+        # Display progress:
+        # if mod(igibbs,Update)==0 
+        #     println("Replication $igibbs of $reps. Lag $p Prior Tightness $λ date")
+        # end
+        #step 1: Sample VAR coefficients
+        β2,problem = get_coef(mstar,sigma,ixx,max_try,K,p)
+        if problem
+            β2 = beta0
+        else
+            beta0 = β2
+        end
+        #draw covariance
+        e = Y0-X0*reshape(β2,K*p+1,K)
+        scale = e'*e
+        v = T+size(yd,1)
+        inv_scale = inv(scale)
+        sigma = iwpq(v,inv_scale)
+        if igibbs > burnin && ~problem
+            jgibbs = jgibbs+1
+            yhat = get_pathsVAR(K, H+1, T, p, Y, β2,sigma) #HERE
+            fsave(jgibbs,:,:) = [yhat(p+1:end-1,:)]
+        end
+        igibbs=igibbs+1;
+    end
+end
+
+function get_coef(mstar,sigma,ixx,max_try,K,p)
+    problem=0
+    vstar = kron(sigma,ixx)
+    check = -1
+    tryx = 1
+    CH = 0
+    β = Array{}
+    while check<0 && tryx<max_try
+        β = mstar+(randn(1,K*(K*p+1))*chol(Hermitian(vstar)))';
+        
+        CH = check_stability(β,K,p)
+        if CH == 0
+            check = 10
+        else
+            tryx = tryx+1
+        end
+    end
+    if CH>0
+        problem = 1
+    end
+    return β,problem
+end
+
+function check_stability(beta,K,p)
+    #  coef   (n*l+1)xn matrix with the coef from the VAR
+    #  l      number of lags
+    #  n      number of endog variables
+    #  FF     matrix with all coef
+    #  S      dummy var: if equal one->stability
+    FF=zeros(K*p,K*p)
+    FF[K+1:K*p,1:K*(p-1)] = eye(K*(p-1),K*(p-1))
+    
+    temp = reshape(beta,K*p+1,K)
+    temp = temp[1:K*p,1:K]'
+    FF[1:K,1:K*p] = temp
+    ee = maximum(abs.(eigvals(FF)))
+    S = ee >= 1
+    return S
+end
+
+function iwpq(v,ixpx);
+    k = size(ixpx,1)
+    z = zeros(v,k)
+    mu = zeros(k,1)
+    for i = 1:v
+        z[i,:]=(chol(Hermitian(ixpx))'*randn(k,1))'
+    end
+    out = inv(z'*z)
+    return out
+end    
+
+function yhat = get_pathsVAR(K, H, T, p, Y, β, sigma) # HERE!!!
+    # -------------------------------------------------------------------------
+    # get_paths:
+    # generates a matrix of simulated paths for Y for given parameters and
+    # general set-up (lags, horizon, etc.)
+    # -------------------------------------------------------------------------
+    # Draw K(0,1) innovations for variance and mean equation:
+    csigma = chol(Hermitian(sigma))
+    uu = randn(H+p,K)
+    # Note we only need H*K innovations, but adding an extra p draws makes 
+    # the indexing in the loop below a bit cleaner.
+    #compute forecast
+    yhat=zeros(H+p,K)
+    yhat[1:p,:]=Y[T-p+1:T,:]
+    for fi = p+1:H+p
+        xhat= Array{Float64}(1) # HERE!!!
+        for ji=1:p
+            xhat= hcat(xhat,yhat[fi-ji,:])
+        end
+        xhat = hcat(xhat,1)
+        yhat[fi,:] = xhat*reshape(β,K*p+1,K) + uu[fi,:]*csigma
+    end
+    return yhat
 end
 
 
