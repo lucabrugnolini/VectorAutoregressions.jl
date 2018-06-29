@@ -1,6 +1,6 @@
 module VARs
 using Parameters, GrowableArrays
-# Credits
+# Credits:
 # Kilian and Kim 2011, Cremfi 
 
 type Intercept end
@@ -25,6 +25,12 @@ end
     λ::Range{Float64} = 0.1:0.1:1
     τ::Range{Float64} = 10*(0.1:0.1:1)
     ε::Float64 = 0.0001
+    p = 4
+    H::Int64 = 10
+    reps::Int64 = 100
+    burnin::Int64 = 10
+    max_try::Int64 = 1000
+    update::Int64 = 10
 end
 
 function bVAR(y::Array,p::Int64,i::Bool,reps::Int64,burn::Int64,max_try::Int64,prior::Hyperparameter)
@@ -34,12 +40,12 @@ end
 
 function get_prior(y::Array,p::Int64)
     T,K = size(y) 
-    μ = mean(Y,1)'
+    μ = mean(y,1)'
     sigmaP = Array{Float64}(0)
     deltaP = Array{Float64}(0)
     e0 = Array{Float64}(T-p,0)
     for i = 1:K
-        ytemp = Y[:,i]
+        ytemp = y[:,i]
         xtemp = [lagmatrix(ytemp,p) ones(length(ytemp)-p)]
         ytemp = ytemp[1+p:end,:]
         btemp=xtemp\ytemp
@@ -97,7 +103,7 @@ function create_dummies(λ::Float64,τ::Float64,δ::Array,ε::Float64,p::Int64,�
     return y,x
 end
 
-function sum_loggamma(K,v);
+function sum_loggamma(K::Int64,v::Int64)
     out = 0
     for i = 1:K
         out = out + lgamma((v+1-i)/2)
@@ -105,14 +111,14 @@ function sum_loggamma(K,v);
     return out
 end
 
-function mgamln(K,v)
+function mgamln(K::Int64,v::Int64)
     constant = (K*(K-1)/4)*log(pi)
     term2 = sum_loggamma(K,v)
     out = constant + term2
     return out
 end
 
-function max_lik_var(y,x,yd,xd)
+function max_lik_var(y::Array,x::Array,yd::Array,xd::Array)
     T,K = size(y)
     v = size(yd,1)
     y1 = vcat(y,yd)
@@ -141,7 +147,7 @@ function max_lik_var(y,x,yd,xd)
     return out
 end
 
-function get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
+function get_opt_lag_prior(y::Array,p::Int64,λ::Range{Float64},τ::Range{Float64},δ::Array,ε::Float64,μ::Array,σ::Array)
     K  =  size(y,2)
     outmlik = zeros(length(p),length(λ))
     tableL = zeros(length(p),length(λ))
@@ -170,113 +176,44 @@ function get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
     return optL, optP, optD
 end
 
-
-# Example
-y = rand(100,3)
-p = 4
-prior = Hyperparameter()
-# λ,τ,δ,ε,p,μ,σ,K = prior.λ,prior.τ,deltaP,prior.ε,p,μ,sigmaP,K
-reps = 100
-burnin = 10
-H = 10
-max_try = 1000
-
-function fit_bvar(y::Array,p::Int64,prior::Hyperparameter)
-    T,K = size(y)
-    Y = copy(y)
-    μ, sigmaP, deltaP, e0  = get_prior(y,p)
-    λ,τ,δ,ε,p,μ,σ,K = prior.λ,prior.τ,deltaP,prior.ε,p,μ,sigmaP,K
-    optL,optP,optD = get_opt_lag_prior(Y,p,λ,τ,δ,ε,μ,σ)
-    yd,xd = create_dummies(optP[1],optD[1],deltaP,ε,Int(optL[1]),μ,sigmaP,K)
-    
-    X = lagmatrix(y,p)
-    X = hcat(X, ones(size(X,1)))
-    Y = Y[p+1:end,:]
-    
-    iT, iK = size(X)
-    
-    fsave = zeros(reps-burnin,H,K) 
-    
-    Y0 = [Y; yd]
-    X0 = [X; xd]
-    # conditional mean of the VAR coefficients
-    mstar = vec(X0\Y0) # ols on the appended data
-    xx = X0'*X0
-    ixx = xx\eye(size(xx,2))  # inv(X0'X0) to be used later in the Gibbs sampling lgorithm
-    sigma = eye(K) # starting value for sigma
-    beta0 = vec(X0\Y0)
-    igibbs = 1
-    jgibbs = 0
-    
-    while jgibbs < reps-burnin
-        
-        # Display progress:
-        # if mod(igibbs,Update)==0 
-        #     println("Replication $igibbs of $reps. Lag $p Prior Tightness $λ date")
-        # end
-        #step 1: Sample VAR coefficients
-        β2,problem = get_coef(mstar,sigma,ixx,max_try,K,p)
-        if problem
-            β2 = beta0
-        else
-            beta0 = β2
-        end
-        #draw covariance
-        e = Y0-X0*reshape(β2,K*p+1,K)
-        scale = e'*e
-        v = T+size(yd,1)
-        inv_scale = inv(scale)
-        sigma = iwpq(v,inv_scale)
-        if igibbs > burnin && ~problem
-            jgibbs = jgibbs+1
-            yhat = get_pathsVAR(K, H+1, T, p, Y, β2,sigma) #HERE
-            fsave(jgibbs,:,:) = [yhat(p+1:end-1,:)]
-        end
-        igibbs=igibbs+1;
-    end
-end
-
-function get_coef(mstar,sigma,ixx,max_try,K,p)
-    problem=0
+function get_coef(β::Array,sigma::Array,ixx::Array,max_try::Int64,K::Int64,p::Int64)
+    problem = 0
     vstar = kron(sigma,ixx)
     check = -1
-    tryx = 1
-    CH = 0
-    β = Array{}
-    while check<0 && tryx<max_try
-        β = mstar+(randn(1,K*(K*p+1))*chol(Hermitian(vstar)))';
+    num_try = 1
+    control_stability = 0
+    mβ = Array{}
+    while check < 0 && num_try < max_try
+        mβ = β + (randn(1,K*(K*p+1))*chol(Hermitian(vstar)))'
         
-        CH = check_stability(β,K,p)
-        if CH == 0
+        control_stability = check_stability(mβ,K,p)
+        if control_stability == 0
             check = 10
         else
-            tryx = tryx+1
+            num_try += 1
         end
     end
-    if CH>0
+    if control_stability > 0
         problem = 1
     end
-    return β,problem
+    return mβ,problem
 end
 
-function check_stability(beta,K,p)
-    #  coef   (n*l+1)xn matrix with the coef from the VAR
-    #  l      number of lags
-    #  n      number of endog variables
-    #  FF     matrix with all coef
-    #  S      dummy var: if equal one->stability
-    FF=zeros(K*p,K*p)
-    FF[K+1:K*p,1:K*(p-1)] = eye(K*(p-1),K*(p-1))
+function check_stability(β::Array,K::Int64,p::Int64)
+    Kp = K*p 
+    K_p1 = K*(p-1)
+    mCoef = zeros(Kp,Kp)
+    mCoef[K+1:Kp,1:K_p1] = eye(K_p1,K_p1)
     
-    temp = reshape(beta,K*p+1,K)
-    temp = temp[1:K*p,1:K]'
-    FF[1:K,1:K*p] = temp
-    ee = maximum(abs.(eigvals(FF)))
-    S = ee >= 1
-    return S
+    temp = reshape(β,Kp+1,K)
+    temp = view(temp,1:Kp,1:K)'
+    mCoef[1:K,1:Kp] = temp
+    ee = maximum(abs.(eigvals(mCoef)))
+    is_stable = ee >= 1
+    return is_stable
 end
 
-function iwpq(v,ixpx);
+function iwpq(v::Int64,ixpx::Array)
     k = size(ixpx,1)
     z = zeros(v,k)
     mu = zeros(k,1)
@@ -287,7 +224,7 @@ function iwpq(v,ixpx);
     return out
 end    
 
-function yhat = get_pathsVAR(K, H, T, p, Y, β, sigma) # HERE!!!
+function get_forecast(K::Int64, H::Int64, T::Int64, p::Int64, Y::SubArray, β::Array, sigma::Array) 
     # -------------------------------------------------------------------------
     # get_paths:
     # generates a matrix of simulated paths for Y for given parameters and
@@ -299,65 +236,74 @@ function yhat = get_pathsVAR(K, H, T, p, Y, β, sigma) # HERE!!!
     # Note we only need H*K innovations, but adding an extra p draws makes 
     # the indexing in the loop below a bit cleaner.
     #compute forecast
-    yhat=zeros(H+p,K)
-    yhat[1:p,:]=Y[T-p+1:T,:]
+    yhat = zeros(H+p,K)
+    yhat[1:p,:] = Y[T-p+1:T,:]
     for fi = p+1:H+p
-        xhat= Array{Float64}(1) # HERE!!!
-        for ji=1:p
-            xhat= hcat(xhat,yhat[fi-ji,:])
+        xhat= Array{Float64}(0) 
+        for ji = 1:p
+            xhat = vcat(xhat,yhat[fi-ji,:])
         end
-        xhat = hcat(xhat,1)
-        yhat[fi,:] = xhat*reshape(β,K*p+1,K) + uu[fi,:]*csigma
+        xhat = vcat(xhat,1)
+        yhat[fi,:] = xhat'*reshape(β,K*p+1,K) + uu[fi,:]'*csigma
     end
     return yhat
 end
 
-
-
-abstract type CI end
-
-type IRFs
-    IRF::Array
-    CI::CI
-end
-
-
-type CI_asy <: CI
-    CIl::Array
-    CIh::Array
-end
-
-type CI_boot <: CI
-    CIl::Array
-    CIh::Array
-end
-
-function IRFs_a(V::VAR,H::Int64,i::Bool)
-    if i == true
-        mVar1 = get_VAR1_rep(V,V.inter)
-        mIRF = irf_chol(V, mVar1, H)
-        mStd = irf_ci_asymptotic(V, H, V.inter)
-    else
-        mVar1 = get_VAR1_rep(V)
-        mIRF = irf_chol(V, mVar1, H)
-        mStd = irf_ci_asymptotic(V, H)
+function gibbs!(Y::Array,yd::Array,xd::Array,p::Int64,reps::Int64,burnin::Int64,update::Int64,fsave::Array)
+    x = lagmatrix(Y,p)
+    T = size(x,1)
+    K = size(Y,2)
+    iT = size(yd,1)
+    x = hcat(x, ones(T))
+    y = view(Y,p+1:T+p,:)
+    
+    y0 = [y; yd]
+    x0 = [x; xd]
+    # conditional mean of the VAR coefficients
+    β0 = vec(x0\y0) # ols on the appended data
+    xx = x0'*x0
+    ixx = xx\eye(size(xx,2))  # inv(x0'x0) to be used later in the Gibbs sampling lgorithm
+    σ = eye(K) # starting value for sigma
+    igibbs = 1
+    jgibbs = 0
+    
+    while jgibbs < reps-burnin
+        # Display progress:
+        if mod(igibbs,update)==0 
+            println("Replication $igibbs of $reps. Lag $p")
+        end
+        # #step 1: Sample VAR coefficients
+        β1, problem = get_coef(β0,σ,ixx,max_try,K,p)
+        if problem == 1
+            β1 = β0
+        else
+            β0 = β1
+        end
+        #draw covariance
+        e = y0-x0*reshape(β1,K*p+1,K)
+        scale = e'*e
+        v = T+iT
+        inv_scale = inv(scale)
+        σ = iwpq(v,inv_scale)
+        if igibbs > burnin && problem == 0
+            jgibbs += 1
+            yhat = get_forecast(K, H+1, T, p, y, β1,σ)
+            fsave[jgibbs,:,:] = view(yhat,p+1:H+p,:)
+        end
+        igibbs += 1
     end
-    mCIl = mIRF - 1.96.*mStd
-    mCIh = mIRF + 1.96.*mStd
-    return IRFs(mIRF,CI_asy(mCIl,mCIh))
+    return fsave
 end
 
-function IRFs_b(V::VAR,H::Int64,nrep::Int64,i::Bool)
-    if i == true
-        mVar1 = get_VAR1_rep(V,V.inter)
-        mIRF = irf_chol(V, mVar1, H)
-        CI = irf_ci_bootstrap(V, H, nrep,V.inter)
-    else
-        mVar1 = get_VAR1_rep(V)
-        mIRF = irf_chol(V, mVar1, H)
-        CI = irf_ci_bootstrap(V, H, nrep)
-    end
-    return IRFs(mIRF,CI)
+function fit_bvar(y::Array,p::Int64,prior::Hyperparameter)
+    @unpack λ ,τ ,ε ,p ,H ,reps ,burnin ,max_try ,update = prior 
+    T,K = size(y)
+    μ, σ, δ, e0  = get_prior(y,p)
+    p_star,λ_star,τ_star = get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
+    yd,xd = create_dummies(λ_star[1],τ_star[1],δ,ε,Int(p_star[1]),μ,σ,K)
+    mForecast = zeros(reps-burnin,H,K) 
+    gibbs!(y,yd,xd,Int(p_star[1]),reps,burnin,update,mForecast)
+    return fsave
 end
 
 function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
@@ -410,6 +356,59 @@ function lagmatrix{F}(x::Vector{F},p::Int64)
         end
     end
     return X[:,2:end]
+end
+
+
+# Example
+y = rand(100,3)
+prior = Hyperparameter()
+# λ,τ,δ,ε,p,μ,σ,K = prior.λ,prior.τ,deltaP,prior.ε,p,μ,sigmaP,K
+fsave = fit_bvar(y,p,prior)
+
+##################################################################################
+abstract type CI end
+
+type IRFs
+    IRF::Array
+    CI::CI
+end
+
+type CI_asy <: CI
+    CIl::Array
+    CIh::Array
+end
+
+type CI_boot <: CI
+    CIl::Array
+    CIh::Array
+end
+
+function IRFs_a(V::VAR,H::Int64,i::Bool)
+    if i == true
+        mVar1 = get_VAR1_rep(V,V.inter)
+        mIRF = irf_chol(V, mVar1, H)
+        mStd = irf_ci_asymptotic(V, H, V.inter)
+    else
+        mVar1 = get_VAR1_rep(V)
+        mIRF = irf_chol(V, mVar1, H)
+        mStd = irf_ci_asymptotic(V, H)
+    end
+    mCIl = mIRF - 1.96.*mStd
+    mCIh = mIRF + 1.96.*mStd
+    return IRFs(mIRF,CI_asy(mCIl,mCIh))
+end
+
+function IRFs_b(V::VAR,H::Int64,nrep::Int64,i::Bool)
+    if i == true
+        mVar1 = get_VAR1_rep(V,V.inter)
+        mIRF = irf_chol(V, mVar1, H)
+        CI = irf_ci_bootstrap(V, H, nrep,V.inter)
+    else
+        mVar1 = get_VAR1_rep(V)
+        mIRF = irf_chol(V, mVar1, H)
+        CI = irf_ci_bootstrap(V, H, nrep)
+    end
+    return IRFs(mIRF,CI)
 end
 
 function fit(y::Array,p::Int64)
