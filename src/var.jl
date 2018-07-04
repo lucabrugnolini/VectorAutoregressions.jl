@@ -1,5 +1,5 @@
 module VARs
-using Parameters, GrowableArrays
+using Parameters, GrowableArrays, CSV, Plots
 # Credits:
 # Kilian and Kim 2011, Cremfi 
 
@@ -29,20 +29,20 @@ end
     H::Int64 = 10
     reps::Int64 = 100
     burnin::Int64 = 10
-    max_try::Int64 = 1000
+    max_try::Int64 = 100
     update::Int64 = 10
 end
 
 function bVAR(y::Array,p::Int64,i::Bool,reps::Int64,burn::Int64,max_try::Int64,prior::Hyperparameter)
-    i == false ? ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,p,prior)) : ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,p,Intercept()))
+    i == false ? ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,prior)) : ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,Intercept()))
     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 end
 
-function get_prior(y::Array,p::Int64)
+function get_prior(y::Array,p::Int64 = 1)
     T,K = size(y) 
     μ = mean(y,1)'
-    sigmaP = Array{Float64}(0)
-    deltaP = Array{Float64}(0)
+    σ = Array{Float64}(0)
+    δ = Array{Float64}(0)
     e0 = Array{Float64}(T-p,0)
     for i = 1:K
         ytemp = y[:,i]
@@ -54,11 +54,11 @@ function get_prior(y::Array,p::Int64)
         if abs(btemp[1]) > 1
             btemp[1] = 1
         end
-        sigmaP = vcat(sigmaP,stemp)
-        deltaP = vcat(deltaP,btemp[1])
+        σ = vcat(σ,stemp)
+        δ = vcat(δ,btemp[1])
         e0 = hcat(e0, etemp)
     end
-    return μ, sigmaP, deltaP, e0 
+    return μ, σ, δ, e0 
 end
 
 function create_dummies(λ::Float64,τ::Float64,δ::Array,ε::Float64,p::Int64,μ::Array,σ::Array,K::Int64)
@@ -249,7 +249,8 @@ function get_forecast(K::Int64, H::Int64, T::Int64, p::Int64, Y::SubArray, β::A
     return yhat
 end
 
-function gibbs!(Y::Array,yd::Array,xd::Array,p::Int64,reps::Int64,burnin::Int64,update::Int64,fsave::Array)
+function gibbs!(Y::Array,yd::Array,xd::Array,p::Int64,prior::Hyperparameter,mForecast::Array)
+    @unpack λ ,τ ,ε ,H ,reps ,burnin ,max_try ,update = prior 
     x = lagmatrix(Y,p)
     T = size(x,1)
     K = size(Y,2)
@@ -260,6 +261,7 @@ function gibbs!(Y::Array,yd::Array,xd::Array,p::Int64,reps::Int64,burnin::Int64,
     y0 = [y; yd]
     x0 = [x; xd]
     # conditional mean of the VAR coefficients
+    β0_fix = vec(x0\y0) # ols on the appended data
     β0 = vec(x0\y0) # ols on the appended data
     xx = x0'*x0
     ixx = xx\eye(size(xx,2))  # inv(x0'x0) to be used later in the Gibbs sampling lgorithm
@@ -270,10 +272,10 @@ function gibbs!(Y::Array,yd::Array,xd::Array,p::Int64,reps::Int64,burnin::Int64,
     while jgibbs < reps-burnin
         # Display progress:
         if mod(igibbs,update)==0 
-            println("Replication $igibbs of $reps. Lag $p")
+            println("Replication $igibbs of $reps. Lag $p Prior tightness $λ")
         end
         # #step 1: Sample VAR coefficients
-        β1, problem = get_coef(β0,σ,ixx,max_try,K,p)
+        β1, problem = get_coef(β0_fix,σ,ixx,max_try,K,p)
         if problem == 1
             β1 = β0
         else
@@ -288,22 +290,22 @@ function gibbs!(Y::Array,yd::Array,xd::Array,p::Int64,reps::Int64,burnin::Int64,
         if igibbs > burnin && problem == 0
             jgibbs += 1
             yhat = get_forecast(K, H+1, T, p, y, β1,σ)
-            fsave[jgibbs,:,:] = view(yhat,p+1:H+p,:)
+            mForecast[jgibbs,:,:] = view(yhat,p+1:H+p,:)
         end
         igibbs += 1
     end
-    return fsave
+    return mForecast
 end
 
-function fit_bvar(y::Array,p::Int64,prior::Hyperparameter)
+function fit_bvar(y::Array,prior::Hyperparameter)
     @unpack λ ,τ ,ε ,p ,H ,reps ,burnin ,max_try ,update = prior 
     T,K = size(y)
-    μ, σ, δ, e0  = get_prior(y,p)
+    μ, σ, δ, e0  = get_prior(y)
     p_star,λ_star,τ_star = get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
     yd,xd = create_dummies(λ_star[1],τ_star[1],δ,ε,Int(p_star[1]),μ,σ,K)
     mForecast = zeros(reps-burnin,H,K) 
-    gibbs!(y,yd,xd,Int(p_star[1]),reps,burnin,update,mForecast)
-    return fsave
+    gibbs!(y,yd,xd,Int(p_star[1]),prior,mForecast)
+    return mForecast
 end
 
 function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
@@ -360,11 +362,25 @@ end
 
 
 # Example
-y = rand(100,3)
-prior = Hyperparameter()
-# λ,τ,δ,ε,p,μ,σ,K = prior.λ,prior.τ,deltaP,prior.ε,p,μ,sigmaP,K
-fsave = fit_bvar(y,p,prior)
+y = CSV.read("/home/lbrugnol/Dropbox/other_paper_code/cremfi_bvar/usa_data.csv", header = false)
+y = convert(Array,y[:,1:3])
+const λ = 0.1:0.1:1
+const τ = 10*(0.1:0.1:1)
+const ε = 0.0001
+const p = 4
+const H = 10
+const reps = 10000
+const burnin = 1000
+const max_try = 1000
+const update = 1000
+prior = Hyperparameter(λ,τ,ε,p,H,reps,burnin,max_try,update)
 
+mForecast = fit_bvar(y,prior)
+plot(layout = grid(1,3))
+for j in 1:3
+plot(1:size(y,1), y[:,j])
+plot!(size(y,1)+1:size(y,1)+H, [[percentile(mForecast[:,i,j],16) for i in 1:H] median(mForecast[:,:,j],1)'  [percentile(mForecast[:,i,j],84) for i in 1:H]])
+end
 ##################################################################################
 abstract type CI end
 
