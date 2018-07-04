@@ -317,7 +317,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64)
     SIGa = kron(inv(V.X*V.X'/(T-V.p)),V.Σ)
     # Calculation of stdev follows Lutkepohl(2005) p.111,93
     A = get_VAR1_rep(V)
-    A0inv = full(cholfact(V.Σ,:L))
+    A0inv = cholfact(V.Σ)[:L]
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
     J = [eye(K) zeros(K,K*(V.p-1))]
@@ -349,7 +349,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
     SIGa = SIGa[K+1:end,K+1:end]
     # Calculation of stdev follows Lutkepohl(2005) p.111,93
     A = get_VAR1_rep(V,V.inter)
-    A0inv = full(cholfact(V.Σ,:L))
+    A0inv = cholfact(V.Σ)[:L]
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
     J = [eye(K) zeros(K,K*(V.p-1))]
@@ -545,7 +545,7 @@ end
 
 function irf_chol(V::VAR, mVar1::Array, H::Int64)
     K = size(V.Σ,1)
-    mSigma = full(cholfact(V.Σ,:L))::Array  # Cholesky or reduced form
+    mSigma = cholfact(V.Σ)[:L]::LowerTriangular  # Cholesky or reduced form
     J = [eye(K,K) zeros(K,K*(V.p-1))]
     mIRF = zeros(K^2,H+1)
     mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
@@ -576,6 +576,15 @@ function t_test(V::VAR)
     return T
 end
 
-export VAR, IRFs_a, IRFs_b
+function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
+    T,K = size(y)
+     for j = 2:T                          
+         y[j,:] = mR*y[j-1,:] + mP*randn(K,1)   
+     end
+     y = y[burnin+1:end,:]                      
+     return y .- mean(y,1)
+ end
+
+export VAR, IRFs_a, IRFs_b, gen_var1_data!
 end # end of the module
 
