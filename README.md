@@ -1,12 +1,12 @@
-# VAR.jl
-Vector autoregressive model for Julia
+# VectorAutoregressions.jl
+Vector autoregressive models for Julia
 
 ## Installation
 ```julia
 Pkg.clone("https://github.com/lucabrugnolini/VectorAutoregressions.jl")
 ```
 ## Introduction
-This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) model.
+This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) models.
 
 ## Status
 - [x] Basic constructor
@@ -50,7 +50,7 @@ type VAR
   i::Bool # true or false for including an intercept (default is true)
 end
 ```
-You can access to each element writing `V.` and than the element you are interested in (for example for the covariates `V.X`). The example below shows how to fit a VAR model to a VAR(1) DGP, computing IRFs and CI with both asyntotic and bootstrap procedure.
+You can access to each element writing `V.` and than the element you are interested in (for example for the covariates `V.X`). The example below shows how to fit a VAR model to a VAR(1) DGP, computing IRFs and CI with both asymptotic and bootstrap procedures.
 
 ```julia
 ## Example: 
