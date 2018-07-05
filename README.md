@@ -23,7 +23,7 @@ This package is a work in progress for the estimation and identification of Vect
       - [ ] Long-run restrictions
       - [ ] Sign restrictions
       - [ ] Heteroskedasticity
-      - [ ] HFI
+      - [ ] External instruments (ex. high-frequency,narrative)
     - [x] Confidence bands
       - [x] Asymptotic
       - [x] Bootstrap
