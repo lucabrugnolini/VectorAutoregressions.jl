@@ -1,5 +1,5 @@
 # VectorAutoregressions.jl
-Vector autoregressive model for Julia
+Vector autoregressive models for Julia
 
 ## Installation
 ```julia
