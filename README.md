@@ -9,30 +9,35 @@ Pkg.clone("https://github.com/lucabrugnolini/VectorAutoregressions.jl")
 This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) model.
 
 ## Status
-- [x] Basic constructor
-- [x] Lag-length selection
- - [x] AIC
- - [x] AICC
- - [x] BIC
- - [x] HQC
-- [x] VAR(1) form
-- [x] Impulse response function (IRFs)
-  - [ ] Identification 
-    - [x] Reduce form
-    - [x] Cholesky
-    - [ ] BQ
-    - [ ] Uligh
-    - [ ] HFI
-  - [x] Confidence bands
-    - [x] Asymptotic
-    - [x] Bootstrap
-    - [x] Bootstrap-after-bootstrap
-   - [ ] Local projection IRFs
-     - [ ] Lag-length selection
-     - [ ] Confidence bands
-       - [ ] Standard
-        - [ ] Bootstrap
-
+- [x] VAR 
+  - [x] VAR(1) form
+  - [x] Lag-length selection
+    - [x] AIC
+    - [x] AICC
+    - [x] BIC
+    - [x] HQC
+  - [x] VAR impulse response function (IRFs)
+    - [ ] Identification 
+      - [x] Reduce form
+      - [x] Cholesky
+      - [ ] Long-run restrictions
+      - [ ] Sign restrictions
+      - [ ] Heteroskedasticity
+      - [ ] HFI
+    - [x] Confidence bands
+      - [x] Asymptotic
+      - [x] Bootstrap
+      - [x] Bootstrap-after-bootstrap
+  - [ ] Forecasting
+    - [ ] BVAR
+    - [ ] FAVAR 
+- [ ] Local projection IRFs
+    - [ ] Lag-length selection
+    - [ ] Confidence bands
+      - [ ] Standard
+      - [ ] Bootstrap
+  - [ ] Bayesian Local Projection
+  
 ## Example
 ```julia
 using VectorAutoregressions
