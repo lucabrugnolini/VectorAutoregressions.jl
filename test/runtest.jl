@@ -1,7 +1,7 @@
 ## Example: 
 ## DGP - Bivariate VAR(1) Model from Kilian, RESTAT, 1998
 # B11 set to 0.01
-using VARs, Plots
+using VectorAutoregressions, Plots
 plotly()
 
 const T,K = 1000,2

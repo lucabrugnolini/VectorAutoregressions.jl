@@ -3,7 +3,7 @@ Vector autoregressive model for Julia
 
 ## Installation
 ```julia
-Pkg.clone("https://github.com/lucabrugnolini/VAR.jl")
+Pkg.clone("https://github.com/lucabrugnolini/VectorAutoregressions.jl")
 ```
 ## Introduction
 This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) model.
@@ -35,7 +35,7 @@ This package is a work in progress for the estimation and identification of Vect
 
 ## Example
 ```julia
-using VARs
+using VectorAutoregressions
 V = VAR(Y, p, i)
 ```
 Where `Y` is a matrix with data, `p` is the lag-length and `i` is a Boolean for including an intercept (default is true). It returns a fitted VAR(p) model with the following structure:
@@ -56,7 +56,7 @@ You can access to each element writing `V.` and than the element you are interes
 ## Example: 
 ## DGP - Bivariate VAR(1) Model from Kilian, RESTAT, 1998
 # B11 set to 0.01
-using VARs, Plots
+using VectorAutoregressions, Plots
 plotly()
 
 const T,K = 1000,2

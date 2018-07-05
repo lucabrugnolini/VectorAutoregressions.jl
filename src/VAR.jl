@@ -1,4 +1,4 @@
-module VARs
+module VectorAutoregressions
 
 type Intercept end
 
