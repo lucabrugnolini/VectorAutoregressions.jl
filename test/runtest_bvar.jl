@@ -2,7 +2,7 @@
 using VectorAutoregressions, Plots
 plotly()
 
-y = CSV.read(joinpath(Pkg.dir("VectorAutoregressions.jl"),"test","bvar_test.csv"), header = false)
+y = CSV.read(joinpath(Pkg.dir("VectorAutoregressions.jl"),"test","bvar_data.csv"), header = false)
 y = convert(Array,y[:,1:3])
 const λ = 0.1:0.1:1
 const τ = 10*(0.1:0.1:1)
