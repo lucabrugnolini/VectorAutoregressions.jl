@@ -23,6 +23,7 @@ function VAR(y::Array,p::Int64,i::Bool)
     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 end
 
+#TODO: change bVAR --> VAR
 function bVAR(y::Array,p::Int64,i::Bool,reps::Int64,burn::Int64,max_try::Int64,prior::Hyperparameter)
     i == false ? ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,prior)) : ((Y,X,β,ϵ,Σ,p) = fit_bvar(y,Intercept()))
     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
