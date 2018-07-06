@@ -1,5 +1,6 @@
 # Example - BVAR
-using VectorAutoregressions, Plots
+using Plots
+include(joinpath(Pkg.dir("VectorAutoregressions.jl"),"src","")) 
 plotly()
 
 y = CSV.read(joinpath(Pkg.dir("VectorAutoregressions.jl"),"test","bvar_data.csv"), header = false)
