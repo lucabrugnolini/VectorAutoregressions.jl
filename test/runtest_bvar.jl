@@ -1,19 +1,19 @@
 # Example - BVAR
-using Plots
-include(joinpath(Pkg.dir("VectorAutoregressions.jl"),"src","bvar.jl")) 
+using Plots, CSV
+include(joinpath(Pkg.dir("VectorAutoregressions"),"src","bvar.jl")) 
 plotly()
 
-y = CSV.read(joinpath(Pkg.dir("VectorAutoregressions.jl"),"test","bvar_data.csv"), header = false)
+y = CSV.read(joinpath(Pkg.dir("VectorAutoregressions"),"test","bvar_data.csv"), header = false)
 y = convert(Array,y[:,1:3])
 const λ = 0.1:0.1:1
 const τ = 10*(0.1:0.1:1)
 const ε = 0.0001
 const p = 4
 const H = 10
-const reps = 10000
-const burnin = 1000
-const max_try = 1000
-const update = 1000
+const reps = 1000
+const burnin = 100
+const max_try = 100
+const update = 100
 prior = Hyperparameter(λ,τ,ε,p,H,reps,burnin,max_try,update)
 
 mForecast = fit_bvar(y,prior)

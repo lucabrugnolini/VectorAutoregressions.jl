@@ -41,6 +41,58 @@ function get_prior(y::Array,p::Int64 = 1)
     return μ, σ, δ, e0 
 end
 
+function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
+    sk = 1
+    T, K = size(x)
+    k    = K*p+1
+    idx  = repmat(1:K, p)
+    X    = Array{F}(T-p, k)
+    # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
+    for j = 1+sk:(sk+K*p)
+        for i = 1:(T-p)
+            lg = round(Int, ceil((j-sk)/K)) - 1 # create index [0 0 1 1 2 2 ...etc]
+            @inbounds X[i, j] = x[i+p-1-lg, idx[j-sk]]
+        end
+    end
+    for j=1:T-p
+        @inbounds X[j,1] = 1.0
+    end
+    return X
+end
+
+function lagmatrix{F}(x::Array{F},p::Int64)
+    sk = 1
+    T, K = size(x)
+    k    = K*p+1
+    idx  = repmat(1:K, p)
+    X    = Array{F}(T-p, k)
+    # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
+    for j = 1+sk:(sk+K*p)
+        for i = 1:(T-p)
+            lg = round(Int, ceil((j-sk)/K)) - 1 # create index [0 0 1 1 2 2 ...etc]
+            @inbounds X[i, j] = x[i+p-1-lg, idx[j-sk]]
+        end
+    end
+    return X[:,2:end]
+end
+
+function lagmatrix{F}(x::Vector{F},p::Int64)
+    sk = 1
+    T = length(x)
+    K = 1
+    k    = K*p+1
+    idx  = repmat(1:K, p)
+    X    = Array{F}(T-p, k)
+    # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
+    for j = 1+sk:(sk+K*p)
+        for i = 1:(T-p)
+            lg = round(Int, ceil((j-sk)/K)) - 1 # create index [0 0 1 1 2 2 ...etc]
+            @inbounds X[i, j] = x[i+p-1-lg, idx[j-sk]]
+        end
+    end
+    return X[:,2:end]
+end
+
 function create_dummies(λ::Float64,τ::Float64,δ::Array,ε::Float64,p::Int64,μ::Array,σ::Array,K::Int64)
     if typeof(σ) == Array{Float64,2}
         σ = σ[:,1]
@@ -287,3 +339,4 @@ function fit_bvar(y::Array,prior::Hyperparameter)
     gibbs!(y,yd,xd,Int(p_star[1]),prior,mForecast)
     return mForecast
 end
+
