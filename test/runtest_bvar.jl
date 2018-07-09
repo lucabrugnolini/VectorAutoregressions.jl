@@ -1,5 +1,5 @@
 # Example - BVAR
-using Plots, CSV
+using Plots, CSV, StatsBase
 include(joinpath(Pkg.dir("VectorAutoregressions"),"src","bvar.jl")) 
 plotly()
 
@@ -17,8 +17,10 @@ const update = 100
 prior = Hyperparameter(λ,τ,ε,p,H,reps,burnin,max_try,update)
 
 mForecast = fit_bvar(y,prior)
-plot(layout = grid(1,3))
-for j in 1:3
-plot(1:size(y,1), y[:,j])
-plot!(size(y,1)+1:size(y,1)+H, [[percentile(mForecast[:,i,j],16) for i in 1:H] median(mForecast[:,:,j],1)'  [percentile(mForecast[:,i,j],84) for i in 1:H]])
+pFore = plot(layout = grid(1,3));
+for j in 1:size(mForecast,3)
+plot!(pFore,size(y,1)-H:size(y,1)+H, [y[size(y,1)-H:end,j]; median(mForecast[:,:,j],1)'], legend = false,subplot = j);
+plot!(pFore,size(y,1)+1:size(y,1)+H, [[percentile(mForecast[:,i,j],16) for i in 1:H] median(mForecast[:,:,j],1)' [percentile(mForecast[:,i,j],84) for i in 1:H]], color = "red", line = [:dash :solid :dash], subplot = j)
 end
+
+gui(pFore)

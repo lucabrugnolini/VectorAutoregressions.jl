@@ -11,7 +11,6 @@ const p = 1
 const intercept = false
 const burnin = 100
 
-
 srand(1234)
 mR  = [0.9 0.01; 0.5 0.5]             #  Coefficients of the 1st lag B11 set to 0.01
 mΣ_true = [1 0.3; 0.3 1]              #  vcv of u

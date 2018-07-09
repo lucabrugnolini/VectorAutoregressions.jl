@@ -1,7 +1,7 @@
 using VectorAutoregressions, Base.Test
 
 # comparison against http://www-personal.umich.edu/~lkilian/figure9_1_chol.zip
-y = readdlm("test/cholvar_test_data.csv",',')
+y = readdlm(joinpath(Pkg.dir("VectorAutoregressions"),"test","cholvar_test_data.csv"),',')
 
 V = VAR(y, 4, true)
 
