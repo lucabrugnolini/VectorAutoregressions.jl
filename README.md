@@ -1,9 +1,11 @@
 # VectorAutoregressions.jl
 Vector autoregressive models for Julia
 
-[![Build Status](https://travis-ci.org/BenjaminBorn/VectorAutoregressions.jl.svg?branch=automatic_testing)](https://travis-ci.org/BenjaminBorn/VectorAutoregressions.jl)
-[![Coverage Status](https://coveralls.io/repos/github/BenjaminBorn/VectorAutoregressions.jl/badge.svg?branch=automatic_testing)](https://coveralls.io/github/BenjaminBorn/VectorAutoregressions.jl?branch=automatic_testing)
-[![codecov.io](http://codecov.io/github/BenjaminBorn/VectorAutoregressions.jl/coverage.svg?branch=automatic_testing)](http://codecov.io/github/BenjaminBorn/VectorAutoregressions.jl?branch=automatic_testing)
+[![Build Status](https://travis-ci.org/lucabrugnolini/VectorAutoregressions.jl.svg?branch=master)](https://travis-ci.org/lucabrugnolini/VectorAutoregressions.jl)
+[![Coverage Status](https://coveralls.io/repos/github/lucabrugnolini/VectorAutoregressions.jl/badge.svg?branch=master)](https://coveralls.io/github/lucabrugnolini/VectorAutoregressions.jl?branch=master)
+[![codecov](https://codecov.io/gh/lucabrugnolini/VectorAutoregressions.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/lucabrugnolini/VectorAutoregressions.jl)
+
+
 
 ## Installation
 ```julia
