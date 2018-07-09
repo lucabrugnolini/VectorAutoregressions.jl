@@ -1,6 +1,10 @@
 # VectorAutoregressions.jl
 Vector autoregressive models for Julia
 
+[![Build Status](https://travis-ci.org/BenjaminBorn/VectorAutoregressions.jl.svg?branch=automatic_testing)](https://travis-ci.org/BenjaminBorn/VectorAutoregressions.jl)
+[![Coverage Status](https://coveralls.io/repos/github/BenjaminBorn/VectorAutoregressions.jl/badge.svg?branch=automatic_testing)](https://coveralls.io/github/BenjaminBorn/VectorAutoregressions.jl?branch=automatic_testing)
+[![codecov.io](http://codecov.io/github/BenjaminBorn/VectorAutoregressions.jl/coverage.svg?branch=automatic_testing)](http://codecov.io/github/BenjaminBorn/VectorAutoregressions.jl?branch=automatic_testing)
+
 ## Installation
 ```julia
 Pkg.clone("https://github.com/lucabrugnolini/VectorAutoregressions.jl")
@@ -9,7 +13,7 @@ Pkg.clone("https://github.com/lucabrugnolini/VectorAutoregressions.jl")
 This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) models.
 
 ## Status
-- [x] VAR 
+- [x] VAR
   - [x] VAR(1) form
   - [x] Lag-length selection
     - [x] AIC
@@ -17,7 +21,7 @@ This package is a work in progress for the estimation and identification of Vect
     - [x] BIC
     - [x] HQC
   - [x] VAR impulse response function (IRFs)
-    - [ ] Identification 
+    - [ ] Identification
       - [x] Reduce form
       - [x] Cholesky
       - [ ] Long-run restrictions
@@ -30,14 +34,14 @@ This package is a work in progress for the estimation and identification of Vect
       - [x] Bootstrap-after-bootstrap
   - [ ] Forecasting
     - [ ] BVAR
-    - [ ] FAVAR 
+    - [ ] FAVAR
 - [ ] Local projection IRFs
     - [ ] Lag-length selection
     - [ ] Confidence bands
       - [ ] Standard
       - [ ] Bootstrap
   - [ ] Bayesian Local Projection
-  
+
 ## Example
 ```julia
 using VectorAutoregressions
@@ -58,7 +62,7 @@ end
 You can access to each element writing `V.` and than the element you are interested in (for example for the covariates `V.X`). The example below shows how to fit a VAR model to a VAR(1) DGP, computing IRFs and CI with both asymptotic and bootstrap procedures.
 
 ```julia
-## Example: 
+## Example:
 ## DGP - Bivariate VAR(1) Model from Kilian, RESTAT, 1998
 # B11 set to 0.01
 using VectorAutoregressions, Plots
@@ -76,11 +80,11 @@ srand(1234)
 mR  = [0.9 0.01; 0.5 0.5]             #  Coefficients of the 1st lag B11 set to 0.01
 mΣ_true = [1 0.3; 0.3 1]              #  vcv of u
 mP = cholfact(mΣ_true)[:L]            #  Cholesky PP'= Σ
-mI = eye(K) 
+mI = eye(K)
 mIRF_true = At_mul_Bt(mP,mI)[:]       # Initialize structural IRF
 # True IRF
 for h=1:H     
-    vIRF = At_mul_Bt(mP,mR^h)[:] 
+    vIRF = At_mul_Bt(mP,mR^h)[:]
     mIRF_true = hcat(mIRF_true,vIRF)
 end
 
