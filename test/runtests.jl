@@ -42,6 +42,7 @@ mIRFb = IRFs_b(V,4,10,true)
 
 
 # Test for BVAR
+# comparison against http://cremfi.econ.qmul.ac.uk/outgoing/bvar.zip
 include(joinpath(Pkg.dir("VectorAutoregressions"),"src","bvar.jl")) 
 y = readdlm(joinpath(Pkg.dir("VectorAutoregressions"),"test","bvar_data.csv"), ',')
 y = y[:,1:3]
