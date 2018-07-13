@@ -1,4 +1,4 @@
-using Parameters, GrowableArrays
+using Parameters, GrowableArrays, StatsBase
 
 #TODO: change bVAR --> VAR
 # function bVAR(y::Array,p::Int64,i::Bool,reps::Int64,burn::Int64,max_try::Int64,prior::Hyperparameter)
@@ -12,10 +12,10 @@ using Parameters, GrowableArrays
     ε::Float64 = 0.0001
     p = 4
     H::Int64 = 10
-    reps::Int64 = 100
-    burnin::Int64 = 10
-    max_try::Int64 = 100
-    update::Int64 = 10
+    reps::Int64 = 10000
+    burnin::Int64 = 8000
+    max_try::Int64 = 1000
+    update::Int64 = 1000
 end
 
 function get_prior(y::Array,p::Int64 = 1)

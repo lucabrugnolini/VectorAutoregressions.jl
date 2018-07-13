@@ -39,3 +39,15 @@ mIRFb = IRFs_b(V,4,10,true)
         0.0437621879606954 0.0591478592307352 0.113331057827868 0.109932348126692
         0.0520037579735191 -0.0341368375885218 -0.111284843056732 -0.0491881671489620
         ]
+
+
+# Test for BVAR
+include(joinpath(Pkg.dir("VectorAutoregressions"),"src","bvar.jl")) 
+y = readdlm(joinpath(Pkg.dir("VectorAutoregressions"),"test","bvar_data.csv"), ',')
+y = y[:,1:3]
+prior = Hyperparameter()
+mForecast = fit_bvar(y,prior)
+
+@test isapprox([0.8510 1.4081 2.2570 2.3415 2.4622 2.5835 2.6867 2.5790 2.5897 2.5767],median(mForecast[:,:,1],1) ;atol = 0.5)
+@test isapprox([1.9614 2.2587 1.8328 1.8745 2.0870 2.2014 2.3303 2.5225 2.5453 2.59387],median(mForecast[:,:,2],1) ;atol = 0.5)
+@test isapprox([-0.3827 -0.2272 -0.1532 -0.0735 0.0784 0.1620 0.3764 0.5247 0.7264 0.8861],median(mForecast[:,:,3],1) ;atol = 0.5)
