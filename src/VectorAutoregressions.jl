@@ -1,9 +1,9 @@
 # This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) models.
 # Credits:
-# Kilian and Kim 2011, Cremfi codes
+# Kilian and Kim 2011, Cremfi codes, Geertler and Karadi 2015
 
 module VectorAutoregressions
-using Parameters
+using Parameters, GrowableArrays
 
 type Intercept end
 
@@ -23,23 +23,25 @@ function VAR(y::Array,p::Int64,i::Bool)
     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 end
 
-abstract type CI end
+abstract type CIs end
 
 type IRFs
     IRF::Array
-    CI::CI
+    CI::CIs
 end
 
 
-type CI_asy <: CI
+type CIs_asy <: CIs
     CIl::Array
     CIh::Array
 end
 
-type CI_boot <: CI
+type CIs_boot <: CIs
     CIl::Array
     CIh::Array
 end
+
+
 
 function IRFs_a(V::VAR,H::Int64,i::Bool)
     if i == true
@@ -53,7 +55,7 @@ function IRFs_a(V::VAR,H::Int64,i::Bool)
     end
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
-    return IRFs(mIRF,CI_asy(mCIl,mCIh))
+    return IRFs(mIRF,CIs_asy(mCIl,mCIh))
 end
 
 function IRFs_b(V::VAR,H::Int64,nrep::Int64,i::Bool)
@@ -66,6 +68,12 @@ function IRFs_b(V::VAR,H::Int64,nrep::Int64,i::Bool)
         mIRF = irf_chol(V, mVar1, H)
         CI = irf_ci_bootstrap(V, H, nrep)
     end
+    return IRFs(mIRF,CI)
+end
+
+function IRFs_ext_instrument(V::VAR,Z::Array,H::Int64,nrep::Int64, α::Array, intercept::Bool)
+        mIRF = irf_ext_instrument(V, Z, H, intercept)
+        CI = irf_ci_wild_bootstrap(V, Z, H, nrep, α, intercept)
     return IRFs(mIRF,CI)
 end
 
@@ -551,7 +559,7 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64; bDo_bias_corr::Bool=tru
     mIRFbc = get_boot_ci(V,H,nrep,bDo_bias_corr)
     # Calculate 95 perccent interval endpoints
     mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
-    return CI_boot(mCIL,mCIH)
+    return CIs_boot(mCIL,mCIH)
 end
 
 function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64, inter::Intercept; bDo_bias_corr::Bool=true)
@@ -561,7 +569,7 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64, inter::Intercept; bDo_b
     mIRFbc = get_boot_ci(V,H,nrep,bDo_bias_corr,V.inter)
     # Calculate 95 perccent interval endpoints
     mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
-    return CI_boot(mCIL,mCIH)
+    return CIs_boot(mCIL,mCIH)
 end
 
 function irf_chol(V::VAR, mVar1::Array, H::Int64)
@@ -588,6 +596,72 @@ function irf_reduce_form(V::VAR, mVar1::Array, H::Int64)
     return mIRF
 end
 
+function irf_ext_instrument(V::VAR,Z::Array,H::Int64,intercept::Bool)
+    # Version improved by G. Ragusa
+    y,B,Σ,U,p = V.Y',V.β,V.Σ,V.ϵ,V.p
+    (T,K) = size(y)
+    (T_z, K_z) = size(Z)
+    ZZ = Z[p+1:end,:]
+    ΣηZ = U[:,T-T_z+p+1:end]*ZZ
+    Ση₁Z = ΣηZ[1:1,:]
+    H1 = ΣηZ*Ση₁Z'./(Ση₁Z*Ση₁Z')
+    A0inv = [H1 zeros(K,K-1)]
+    A = [B[:,2:end];[eye(K*(p-1)) zeros(K*(p-1),K)]]
+    J = [eye(K,K) zeros(K,K*(p-1))]
+    IRF = GrowableArray(A0inv[:,1])
+    #HD = GrowableArray(zeros(K,K))
+    for h in 1:H
+        C = J*A^h*J'    
+        push!(IRF, (C*A0inv)[:,1])    
+    end
+    return IRF
+end
+
+function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,intercept::Bool)
+    # Wild Bootstrap
+    # Version improved by G. Ragusa
+    y,A,u,p = V.Y',V.β,V.ϵ,V.p
+    count = 1
+    (T,K) = size(y)
+    (T_z, K_z) = size(Z)
+    IRFS = GrowableArray(Matrix{Float64}(H+1, K))
+    CILv = Array{Float64}(length(α), size(IRFS,2))
+    CIHv = similar(CILv)
+    lower_bound = Array{Float64}(H+1, length(α))
+    upper_bound = similar(lower_bound)
+    res = u' 
+    oneK = ones(1,K)
+    oneKz = ones(1,K_z)
+    varsb = zeros(T,K)
+    Awc = A[:,2:end]
+    Ac  = A[:,1]
+    rr  = Array{Int16}(T)
+    while count < nrep+1
+        rand!(rr, [-1, 1])        
+        resb = res.*rr
+        #  Deterministic initial values
+        for j in 1:K
+            for i in 1:p
+                @inbounds varsb[i,j] = y[i,j]
+            end
+        end
+        @inbounds for j = p+1:T
+            lvars = transpose(varsb[j-1:-1:j-p,:])        
+            varsb[j,:] = Awc*vec(lvars) + Ac + resb[j-p,:];
+        end
+        proxies = Z[p+1:end,:].*rr[T-T_z+p+1:end]
+        Vr = VAR(varsb,V.p,true)
+        IRFr = irf_ext_instrument(Vr,proxies,H,intercept)
+        #IRFrmat[count, :, :] = vec(IRFr')'
+        push!(IRFS, IRFr)
+        count += 1
+    end
+    # FIX THIS POINT--AT THE MOMENT ONLY FIRST VARIABLE CI
+    lower = mapslices(u->quantile(u, α./2), IRFS[2:end,:,1],1)'
+    upper = mapslices(u->quantile(u, 1-α./2), IRFS[2:end,:,1],1)' 
+    return CIs_boot(lower, upper)    
+end
+
 function t_test(V::VAR)
     K = size(V.Σ,1)
     Kp = size(V.X,1)
@@ -606,6 +680,7 @@ function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
      return y .- mean(y,1)
  end
 
-export VAR, IRFs_a, IRFs_b, gen_var1_data!
+export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, gen_var1_data!
+
 end # end of the module
 
