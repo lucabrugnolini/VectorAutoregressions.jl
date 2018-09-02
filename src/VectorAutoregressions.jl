@@ -8,6 +8,7 @@ using Parameters, GrowableArrays
 type Intercept end
 
 type VAR
+    mData::Array
     Y::Array
     X::Array
     β::Array
@@ -15,12 +16,12 @@ type VAR
     Σ::Array
     p::Int64
     inter::Intercept
-    VAR(Y,X,β,ϵ,Σ,p,inter) = p <= 0 ? error("Lag-length error: 'p' must be strictly positive") : new(Y,X,β,ϵ,Σ,p,inter)
+    VAR(mData,Y,X,β,ϵ,Σ,p,inter) = p <= 0 ? error("Lag-length error: 'p' must be strictly positive") : new(mData,Y,X,β,ϵ,Σ,p,inter)
 end
 
 function VAR(y::Array,p::Int64,i::Bool)
-    i == false ? ((Y,X,β,ϵ,Σ,p) = fit(y,p)) : ((Y,X,β,ϵ,Σ,p) = fit(y,p,Intercept()))
-    return VAR(Y,X,β,ϵ,Σ,p,Intercept())
+    i == false ? ((mData,Y,X,β,ϵ,Σ,p) = fit(y,p)) : ((mData,Y,X,β,ϵ,Σ,p) = fit(y,p,Intercept()))
+    return VAR(mData,Y,X,β,ϵ,Σ,p,Intercept())
 end
 
 abstract type CIs end
@@ -40,8 +41,6 @@ type CIs_boot <: CIs
     CIl::Array
     CIh::Array
 end
-
-
 
 function IRFs_a(V::VAR,H::Int64,i::Bool)
     if i == true
@@ -87,7 +86,7 @@ function fit(y::Array,p::Int64)
     β = (Y*X')/(X*X')
     ϵ = Y - β*X
     Σ = ϵ*ϵ'/(T-p-p*K-1)
-    return Y,X,β,ϵ,Σ,p
+    return y',Y,X,β,ϵ,Σ,p
 end
 
 function fit(y::Array,p::Int64,inter::Intercept)
@@ -100,7 +99,7 @@ function fit(y::Array,p::Int64,inter::Intercept)
     β = (Y*X')/(X*X')
     ϵ = Y - β*X
     Σ = ϵ*ϵ'/(T-p-p*K-1)
-    return Y,X,β,ϵ,Σ,p
+    return y',Y,X,β,ϵ,Σ,p
 end
 
 function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
@@ -620,7 +619,7 @@ end
 function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,intercept::Bool)
     # Wild Bootstrap
     # Version improved by G. Ragusa
-    y,A,u,p = V.Y',V.β,V.ϵ,V.p
+    y,Y,A,u,p = V.mData,V.Y',V.β,V.ϵ,V.p
     count = 1
     (T,K) = size(y)
     (T_z, K_z) = size(Z)
@@ -633,12 +632,17 @@ function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,in
     oneK = ones(1,K)
     oneKz = ones(1,K_z)
     varsb = zeros(T,K)
+    if intercept == true
     Awc = A[:,2:end]
     Ac  = A[:,1]
+    else
+        Awc = A
+        Ac = zeros(A[:,1])
+    end
     rr  = Array{Int16}(T)
     while count < nrep+1
         rand!(rr, [-1, 1])        
-        resb = res.*rr
+        resb = res.*rr[p+1:end]
         #  Deterministic initial values
         for j in 1:K
             for i in 1:p
@@ -649,18 +653,25 @@ function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,in
             lvars = transpose(varsb[j-1:-1:j-p,:])        
             varsb[j,:] = Awc*vec(lvars) + Ac + resb[j-p,:];
         end
-        proxies = Z[p+1:end,:].*rr[T-T_z+p+1:end]
+        proxies = Z.*rr[T-T_z+1:end]
         Vr = VAR(varsb,V.p,true)
         IRFr = irf_ext_instrument(Vr,proxies,H,intercept)
         #IRFrmat[count, :, :] = vec(IRFr')'
         push!(IRFS, IRFr)
         count += 1
     end
+    CIl = Array{Float64}(length(α), H+1,K)
+    CIh = similar(CIl)
+    for i in 1:K
     # FIX THIS POINT--AT THE MOMENT ONLY FIRST VARIABLE CI
-    lower = mapslices(u->quantile(u, α./2), IRFS[2:end,:,1],1)'
-    upper = mapslices(u->quantile(u, 1-α./2), IRFS[2:end,:,1],1)' 
-    return CIs_boot(lower, upper)    
+    lower = mapslices(u->quantile(u, α./2), IRFS[2:end,:,i],1)'
+    upper = mapslices(u->quantile(u, 1-α./2), IRFS[2:end,:,i],1)' 
+    CIl[:,:,i] = lower'
+    CIh[:,:,i] = upper'
+    end
+    return CIs_boot(CIl, CIh)    
 end
+
 
 function t_test(V::VAR)
     K = size(V.Σ,1)
