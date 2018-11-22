@@ -817,41 +817,6 @@ function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
     return y .- mean(y,1)
 end
 
-export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, gen_var1_data!
+export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!
 
 end # end of the module
-
-
-
-(irfv, stdv, Phat, B, SIGMA, U, rfirfv, COVsig) = irfvar(y, pv, H) # IRF by VAR
-pl = lplagorder(y,pbar,H,lag_length_crit) #pv*ones(H)
-# LAG_LENGTHl[n,:] = pl           # lag-order for LP
-println("Fitted LP has length ($pl)")
-(irfl, stdl, rfirfl) = irflp(y, pl, H, convert(Array,Phat), COVsig)            # IRF by LP
-#---BIAS, MSE of IRF ESTIMATES
-BIASv = BIASv + (irfv-irftrue)                    # sum of BIAS
-BIASl = BIASl + (irfl-irftrue)
-MSEv  = MSEv  + (irfv-irftrue).^2                 # sum of squared error
-MSEl  = MSEl  + (irfl-irftrue).^2
-#---BIAS-CORRECTED BOOTSTRAP INTERVAL FOR VAR: KILLIAN -- for VAR(12)
-# translating estimates into the companion form
-A = [B[:,2:end];[eye(K*(pv-1)) zeros(K*(pv-1),K)]]  # slope estimate
-V = [B[:,1];zeros(K*(pv-1),1)]                     # intercept
-SIGMAc = [SIGMA zeros(K,K*pv-K);zeros(K*pv-K,K*pv)]  # sigma
-# Bias correction: if the largest root of the companion matrix
-# is less than 1, do BIAS correction
-eigv = abs(eigvals(A))
-if ~any(eigv.>=1)
-    A = asybc(A,SIGMAc,T,K,pv)
-end
-A = real(A)
-# Bias-corrected estimate is the bootstrap DGP
-CIv = boot([V[1:K,1] A[1:K,1:K*pv]], U, y, pv, H,nrep)
-CILv  = reshape(CIv[1,:]',H+1,K^2)'               # lower bound
-CIHv  = reshape(CIv[2,:]',H+1,K^2)'               # upper bound
-#---BLOCK BOOTSTRAP INTERVAL FOR LOCAL PROJECTIONS
-block = 8;                                         # block size
-CIl = bcbootlp(y, rfirfl, SIGMA, pl[:], block, H,nrep)    # bootstrap interval
-CILl = reshape(CIl[1,:]',H+1,K^2)'                # lower bound
-CIHl = reshape(CIl[2,:]',H+1,K^2)'                # upper bound
-#---COVERAGE RATES
