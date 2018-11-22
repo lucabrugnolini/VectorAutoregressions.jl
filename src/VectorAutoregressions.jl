@@ -71,9 +71,135 @@ function IRFs_b(V::VAR,H::Int64,nrep::Int64,i::Bool)
 end
 
 function IRFs_ext_instrument(V::VAR,Z::Array,H::Int64,nrep::Int64, α::Array, intercept::Bool)
-        mIRF = irf_ext_instrument(V, Z, H, intercept)
-        CI = irf_ci_wild_bootstrap(V, Z, H, nrep, α, intercept)
+    mIRF = irf_ext_instrument(V, Z, H, intercept)
+    CI = irf_ci_wild_bootstrap(V, Z, H, nrep, α, intercept)
     return IRFs(mIRF,CI)
+end
+
+function IRFs_localprojection(z::Array{Float64}, paic::Array{Float64}, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
+    T,K = size(z)
+    A0 = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
+    cov_A0 = zeros(K^2,1)   
+    for h = 1:H           # IRF for Horizon 1~H
+        ph = paic[h]                     # lag-order for horizon h
+        ys = z[ph+h:T,:]   
+        yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
+        x = ones(T-ph-h+1,1)             # constant term
+        for i = 2:ph
+            x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
+        end
+        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
+        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
+        A0 = [A0 vec(β)]                       # reduced form IRF
+        
+        Σ_u = newey_west(ys,yt,Mx,β)
+        
+        invytMxyt  = inv(yt'*Mx*yt)
+        Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
+        Σ_A0 = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        cov_A0 = [cov_A0 reshape(diag(Σ_A0), K^2, 1)]
+    end
+    sd_A0 = sqrt(cov_A0+cov_Σ)    
+    return A0, sd_A0
+end
+
+function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64)
+    T,K = size(z)
+    A0 = vec(eye(K)) # IRF for Horizon 0 --> reduce form
+    cov_A0 = zeros(K^2,1)   
+    for h = 1:H      # IRF for Horizon 1~H
+        ph = paic[h]                     # lag-order for horizon h
+        ys = z[ph+h:T,:]   
+        yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
+        x = ones(T-ph-h+1,1)             # constant term
+        for i = 2:ph
+            x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
+        end
+        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
+        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
+        A0 = [A0 vec(β)]                       # reduced form IRF
+        
+        Σ_u = newey_west(ys,yt,Mx,β)
+        
+        invytMxyt  = inv(yt'*Mx*yt)
+        Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
+        Σ_A0 = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        cov_A0 = [cov_A0 reshape(diag(Σ_A0), K^2, 1)]
+    end
+    sd_A0 = sqrt(cov_A0)    
+    return A0, sd_A0
+end
+
+function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
+    T,K = size(z)
+    A0 = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
+    cov_A0 = zeros(K^2,1)   
+    for h = 1:H           # IRF for Horizon 1~H
+        ph = paic                     # lag-order for horizon h
+        ys = z[ph+h:T,:]   
+        yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
+        x = ones(T-ph-h+1,1)             # constant term
+        for i = 2:ph
+            x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
+        end
+        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
+        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
+        A0 = [A0 vec(β)]                       # reduced form IRF
+        
+        Σ_u = newey_west(ys,yt,Mx,β)
+        
+        invytMxyt  = inv(yt'*Mx*yt)
+        Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
+        Σ_A0 = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        cov_A0 = [cov_A0 reshape(diag(Σ_A0), K^2, 1)]
+    end
+    sd_A0 = sqrt(cov_A0+cov_Σ)    
+    return A0, sd_A0
+end
+
+function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64)
+    T,K = size(z)
+    A0 = vec(eye(K)) # IRF for Horizon 0 --> reduce form
+    cov_A0 = zeros(K^2,1)                            
+    for h = 1:H     # IRF for Horizon 1~H
+        ph = paic                     # lag-order for horizon h
+        ys = z[ph+h:T,:]   
+        yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
+        x = ones(T-ph-h+1,1)             # constant term
+        for i = 2:ph
+            x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
+        end
+        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
+        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
+        A0 = [A0 vec(β)]                       # reduced form IRF
+        
+        Σ_u = newey_west(ys,yt,Mx,β)
+        
+        invytMxyt  = inv(yt'*Mx*yt)
+        Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
+        cov_A0 = [cov_A0 reshape(diag(Σ_β), K^2, 1)]
+    end
+    sd_A0 = sqrt(cov_A0)    
+    return A0, sd_A0
+end
+
+function newey_west(ys,yt,Mx,β)
+    T,K = size(yt)
+    u = Mx*ys - Mx*yt*β    # residual from LPs
+    μ_u = zeros(1,K) 
+    for i = 1:K 
+        μ_u[:,i] = mean(u[:,i])
+    end
+    iu = size(u,1)
+    u0 = u-kron(ones(iu,1),μ_u)
+    ρ0 = (u0'*u0)./iu        # sample cov(u)
+    Σ_u = ρ0 
+    M = h    # truncation point
+    for j = 1:M
+        Rj = (u0[1:end-j,:]'*u0[j+1:end,:])./(size(u,1))   # R(j)
+        Σ_u = Σ_u + (1-j/(M+1))*(Rj+Rj')                 # varcov(u)
+    end
+    return Σ_u
 end
 
 function fit(y::Array,p::Int64)
@@ -633,8 +759,8 @@ function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,in
     oneKz = ones(1,K_z)
     varsb = zeros(T,K)
     if intercept == true
-    Awc = A[:,2:end]
-    Ac  = A[:,1]
+        Awc = A[:,2:end]
+        Ac  = A[:,1]
     else
         Awc = A
         Ac = zeros(A[:,1])
@@ -663,11 +789,11 @@ function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,in
     CIl = Array{Float64}(length(α), H+1,K)
     CIh = similar(CIl)
     for i in 1:K
-    # FIX THIS POINT--AT THE MOMENT ONLY FIRST VARIABLE CI
-    lower = mapslices(u->quantile(u, α./2), IRFS[2:end,:,i],1)'
-    upper = mapslices(u->quantile(u, 1-α./2), IRFS[2:end,:,i],1)' 
-    CIl[:,:,i] = lower'
-    CIh[:,:,i] = upper'
+        # FIX THIS POINT--AT THE MOMENT ONLY FIRST VARIABLE CI
+        lower = mapslices(u->quantile(u, α./2), IRFS[2:end,:,i],1)'
+        upper = mapslices(u->quantile(u, 1-α./2), IRFS[2:end,:,i],1)' 
+        CIl[:,:,i] = lower'
+        CIh[:,:,i] = upper'
     end
     return CIs_boot(CIl, CIh)    
 end
@@ -684,14 +810,48 @@ end
 
 function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
     T,K = size(y)
-     for j = 2:T                          
-         y[j,:] = mR*y[j-1,:] + mP*randn(K,1)   
-     end
-     y = y[burnin+1:end,:]                      
-     return y .- mean(y,1)
- end
+    for j = 2:T                          
+        y[j,:] = mR*y[j-1,:] + mP*randn(K,1)   
+    end
+    y = y[burnin+1:end,:]                      
+    return y .- mean(y,1)
+end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, gen_var1_data!
 
 end # end of the module
 
+
+
+(irfv, stdv, Phat, B, SIGMA, U, rfirfv, COVsig) = irfvar(y, pv, H) # IRF by VAR
+pl = lplagorder(y,pbar,H,lag_length_crit) #pv*ones(H)
+# LAG_LENGTHl[n,:] = pl           # lag-order for LP
+println("Fitted LP has length ($pl)")
+(irfl, stdl, rfirfl) = irflp(y, pl, H, convert(Array,Phat), COVsig)            # IRF by LP
+#---BIAS, MSE of IRF ESTIMATES
+BIASv = BIASv + (irfv-irftrue)                    # sum of BIAS
+BIASl = BIASl + (irfl-irftrue)
+MSEv  = MSEv  + (irfv-irftrue).^2                 # sum of squared error
+MSEl  = MSEl  + (irfl-irftrue).^2
+#---BIAS-CORRECTED BOOTSTRAP INTERVAL FOR VAR: KILLIAN -- for VAR(12)
+# translating estimates into the companion form
+A = [B[:,2:end];[eye(K*(pv-1)) zeros(K*(pv-1),K)]]  # slope estimate
+V = [B[:,1];zeros(K*(pv-1),1)]                     # intercept
+SIGMAc = [SIGMA zeros(K,K*pv-K);zeros(K*pv-K,K*pv)]  # sigma
+# Bias correction: if the largest root of the companion matrix
+# is less than 1, do BIAS correction
+eigv = abs(eigvals(A))
+if ~any(eigv.>=1)
+    A = asybc(A,SIGMAc,T,K,pv)
+end
+A = real(A)
+# Bias-corrected estimate is the bootstrap DGP
+CIv = boot([V[1:K,1] A[1:K,1:K*pv]], U, y, pv, H,nrep)
+CILv  = reshape(CIv[1,:]',H+1,K^2)'               # lower bound
+CIHv  = reshape(CIv[2,:]',H+1,K^2)'               # upper bound
+#---BLOCK BOOTSTRAP INTERVAL FOR LOCAL PROJECTIONS
+block = 8;                                         # block size
+CIl = bcbootlp(y, rfirfl, SIGMA, pl[:], block, H,nrep)    # bootstrap interval
+CILl = reshape(CIl[1,:]',H+1,K^2)'                # lower bound
+CIHl = reshape(CIl[2,:]',H+1,K^2)'                # upper bound
+#---COVERAGE RATES
