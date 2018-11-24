@@ -31,7 +31,6 @@ type IRFs
     CI::CIs
 end
 
-
 type CIs_asy <: CIs
     CIl::Array
     CIh::Array
@@ -76,10 +75,10 @@ function IRFs_ext_instrument(V::VAR,Z::Array,H::Int64,nrep::Int64, α::Array, in
     return IRFs(mIRF,CI)
 end
 
-function IRFs_localprojection(z::Array{Float64}, paic::Array{Float64}, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
+function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
     T,K = size(z)
-    A0 = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
-    cov_A0 = zeros(K^2,1)   
+    mIRF = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
+    cov_mIRF = zeros(K^2,1)   
     for h = 1:H           # IRF for Horizon 1~H
         ph = paic[h]                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
@@ -90,23 +89,25 @@ function IRFs_localprojection(z::Array{Float64}, paic::Array{Float64}, H::Int64,
         end
         Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
         β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
-        A0 = [A0 vec(β)]                       # reduced form IRF
+        mIRF = [mIRF vec(A0inv'*β)]                       # reduced form IRF
         
-        Σ_u = newey_west(ys,yt,Mx,β)
+        Σ_u = newey_west(ys,yt,Mx,β,h)
         
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
-        Σ_A0 = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
-        cov_A0 = [cov_A0 reshape(diag(Σ_A0), K^2, 1)]
+        Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
-    sd_A0 = sqrt(cov_A0+cov_Σ)    
-    return A0, sd_A0
+    mStd = sqrt.(cov_mIRF+cov_Σ)    
+    mCIl = mIRF - 1.96.*mStd
+    mCIh = mIRF + 1.96.*mStd
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
 function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64)
     T,K = size(z)
-    A0 = vec(eye(K)) # IRF for Horizon 0 --> reduce form
-    cov_A0 = zeros(K^2,1)   
+    mIRF = vec(eye(K)) # IRF for Horizon 0 --> reduce form
+    cov_mIRF = zeros(K^2,1)   
     for h = 1:H      # IRF for Horizon 1~H
         ph = paic[h]                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
@@ -117,23 +118,25 @@ function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64)
         end
         Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
         β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
-        A0 = [A0 vec(β)]                       # reduced form IRF
+        mIRF = [mIRF vec(β)]                       # reduced form IRF
         
         Σ_u = newey_west(ys,yt,Mx,β)
         
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
-        Σ_A0 = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
-        cov_A0 = [cov_A0 reshape(diag(Σ_A0), K^2, 1)]
+        Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
-    sd_A0 = sqrt(cov_A0)    
-    return A0, sd_A0
+    mStd = sqrt.(cov_mIRF)    
+    mCIl = mIRF - 1.96.*mStd
+    mCIh = mIRF + 1.96.*mStd
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
 function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
     T,K = size(z)
-    A0 = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
-    cov_A0 = zeros(K^2,1)   
+    mIRF = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
+    cov_mIRF = zeros(K^2,1)   
     for h = 1:H           # IRF for Horizon 1~H
         ph = paic                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
@@ -144,23 +147,25 @@ function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64, A0inv::A
         end
         Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
         β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
-        A0 = [A0 vec(β)]                       # reduced form IRF
+        mIRF = [mIRF vec(β)]                       # reduced form IRF
         
         Σ_u = newey_west(ys,yt,Mx,β)
         
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
-        Σ_A0 = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
-        cov_A0 = [cov_A0 reshape(diag(Σ_A0), K^2, 1)]
+        Σ_mIRF = kron(eye(K), mIRFinv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
-    sd_A0 = sqrt(cov_A0+cov_Σ)    
-    return A0, sd_A0
+    mStd = sqrt.(cov_mIRF+cov_Σ)    
+    mCIl = mIRF - 1.96.*mStd
+    mCIh = mIRF + 1.96.*mStd
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
 function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64)
     T,K = size(z)
-    A0 = vec(eye(K)) # IRF for Horizon 0 --> reduce form
-    cov_A0 = zeros(K^2,1)                            
+    mIRF = vec(eye(K)) # IRF for Horizon 0 --> reduce form
+    cov_mIRF = zeros(K^2,1)                            
     for h = 1:H     # IRF for Horizon 1~H
         ph = paic                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
@@ -171,19 +176,21 @@ function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64)
         end
         Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
         β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
-        A0 = [A0 vec(β)]                       # reduced form IRF
+        mIRF = [mIRF vec(β)]                       # reduced form IRF
         
         Σ_u = newey_west(ys,yt,Mx,β)
         
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
-        cov_A0 = [cov_A0 reshape(diag(Σ_β), K^2, 1)]
+        cov_mIRF = [cov_mIRF reshape(diag(Σ_β), K^2, 1)]
     end
-    sd_A0 = sqrt(cov_A0)    
-    return A0, sd_A0
+    mStd = sqrt.(cov_mIRF)    
+    mCIl = mIRF - 1.96.*mStd
+    mCIh = mIRF + 1.96.*mStd
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
-function newey_west(ys,yt,Mx,β)
+function newey_west(ys::Array,yt::Array,Mx::Array,β::Array,h::Int64)
     T,K = size(yt)
     u = Mx*ys - Mx*yt*β    # residual from LPs
     μ_u = zeros(1,K) 
@@ -200,6 +207,59 @@ function newey_west(ys,yt,Mx,β)
         Σ_u = Σ_u + (1-j/(M+1))*(Rj+Rj')                 # varcov(u)
     end
     return Σ_u
+end
+
+function get_lp_component(z::Array,p::Int64,H::Int64)
+    T,K = size(z)
+    ys = z[p+1:T,:]
+    yt = z[p:T-1,:]                  # RHS variable of interest: y(t)
+    x = ones(T-p,1)                  # constant term
+    for j=2:pbar
+        x = [x z[p+1-j:T-j,:]]       # other RHS variables: y(t-1)~y(t-p+1)
+    end
+    return ys,yt,x
+end
+
+function lp_estimator(ys::Array,yt::Array,x::Array)
+    Mx = get_annhilation_matrix(x)    # annhilation matrix **
+    β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
+    u  = get_lp_residual(ys,yt,Mx,β)  # residual from LPs
+    Σ  = get_variance_estimator(u,t)  # variance of errors
+    return β, u, Σ
+end
+
+get_variance_estimator(u::Array,t::Int64) = u'u/t
+get_annhilation_matrix(x) = size(x,1) |> λ -> eye(λ) - x/(x'*x)*x'
+get_lp_beta(ys::Array,yt::Array,Mx::Array) = (yt'*Mx*yt)\(yt'*Mx*ys)
+get_lp_residual(ys::Array,yt::Array,Mx::Array,β::Array) = Mx*ys - Mx*yt*β
+
+function localprojection_lagorder(z::Array,pbar::Int64,H::Int64,ic::String)
+    T,K = size(z)
+    t     = T-pbar
+    vIC  = zeros(H,1)
+    Ys,Yt,X = get_lp_component(z,pbar,H)
+    for j = 1:H                                  # loop for horizon h of IRF
+        IC = zeros(pbar,1)                       # the vector of AIC(p)
+        ys = Ys[j:end,:]                         # dependent variable: yt+s
+        yt = Yt[1:end-j+1,:]                     # regressor of interest: yt
+        for m = 1:pbar                           # loop for lag order selection
+            x = X[1:end-j+1,1:(m-1)*K+1]         # other independent variables
+            β, u, Σ = lp_estimator(ys,yt,x)
+            if ic == "aic"
+                IC[m]  = log(det(Σ)) + 2*(K^2*m)/t                      # AIC statistic
+            elseif ic == "bic"
+                IC[m]  = log(det(Σ)) + (K^2*m)*log(t)/t                 # SIC statistic
+            elseif ic == "aicc"
+                b = t/(t-(m*K+K+1))
+                IC[m] = t*(log(det(Σ))+K) + 2*b*(K^2*m+K*(K+1)/2)       # HURVICH AND TSAI
+            elseif ic == "hqc"
+                IC[m]  = log(det(Σ)) + 2*log(log(t))*K^2*m/t            # HQ
+            elseif error("ic must be aic, bic, aicc or hqc")
+            end
+        end
+        vIC[j] = indmin(IC)                      
+    end
+    return vIC
 end
 
 function fit(y::Array,p::Int64)
@@ -798,7 +858,6 @@ function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,in
     return CIs_boot(CIl, CIh)    
 end
 
-
 function t_test(V::VAR)
     K = size(V.Σ,1)
     Kp = size(V.X,1)
@@ -818,5 +877,6 @@ function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
 end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!
+export localprojection_lagorder
 
 end # end of the module
