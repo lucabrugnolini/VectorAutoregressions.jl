@@ -45,11 +45,11 @@ function IRFs_a(V::VAR,H::Int64,i::Bool)
     if i == true
         mVar1 = get_VAR1_rep(V,V.inter)
         mIRF = irf_chol(V, mVar1, H)
-        mStd = irf_ci_asymptotic(V, H, V.inter)
+        mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
     else
         mVar1 = get_VAR1_rep(V)
         mIRF = irf_chol(V, mVar1, H)
-        mStd = irf_ci_asymptotic(V, H)
+        mStd,mCov_Σ = irf_ci_asymptotic(V, H)
     end
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd

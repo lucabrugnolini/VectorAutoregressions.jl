@@ -6,7 +6,7 @@ using VectorAutoregressions
 
 #-----------set base-path------------------------------------------
 path = Pkg.dir("VectorAutoregressions")
-path = "/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/"
+# path = "/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/"
 #-----------Load data----------------------------------------------
 y      = readcsv(joinpath(path,"test","lp_data.csv"))
 irfv   = readcsv(joinpath(path,"test","lp_test_var_irf.csv"))
@@ -21,7 +21,7 @@ const pbar = 12 # max order of lag to test
 const H = 24    # horizon
 const intercept = true 
 
-#-----------Lag-length selection for local projection IRFs-------------------
+#-----------Lag-length selection for local projection adn red.form IRFs-------------------
 #Ex. 1
 p = localprojection_lagorder(y,pbar,H,"aic") # using aic selection criteria
 mIRFs = IRFs_localprojection(y, p, H)
@@ -40,10 +40,8 @@ mIRFs = IRFs_localprojection(y, p, H)
 
 #-----------Structural local projection IRFs-------------------
 #Ex. 1 -- using a VAR(pbar) as auxiliary model for cholesky identification
-# p_var = get_lag_length(y,pbar,"aic",intercept)
 p_var = 12
-V = VAR(y,p_var,intercept)
-IRFs_a(V,H,intercept)
+V = VAR(y,p_var,true)
 A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
