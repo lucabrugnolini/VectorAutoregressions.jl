@@ -79,7 +79,7 @@ function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64, A
     T,K = size(z)
     mIRF = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
-    for h = 1:H           # IRF for Horizon 1~H
+    for h = 1:H                          # IRF for Horizon 1~H
         ph = paic[h]                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
         yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
@@ -87,14 +87,14 @@ function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64, A
         for i = 2:ph
             x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
         end
-        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
-        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
-        mIRF = [mIRF vec(A0inv'*β)]                       # reduced form IRF
+        Mx = eye(size(x,1))-x/(x'*x)*x'  # annhilation matrix
+        β = (yt'*Mx*yt)\(yt'*Mx*ys)      # IRF by Local Projection
+        mIRF = [mIRF vec(A0inv'*β)]      # reduced form IRF
         
         Σ_u = newey_west(ys,yt,Mx,β,h)
         
         invytMxyt  = inv(yt'*Mx*yt)
-        Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
+        Σ_β = kron(Σ_u, invytMxyt)                                 # var(vec(β))
         Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
@@ -120,12 +120,11 @@ function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64)
         β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
         mIRF = [mIRF vec(β)]                       # reduced form IRF
         
-        Σ_u = newey_west(ys,yt,Mx,β)
+        Σ_u = newey_west(ys,yt,Mx,β,h)
         
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
-        Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
-        cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
+        cov_mIRF = [cov_mIRF reshape(diag(Σ_β), K^2, 1)]
     end
     mStd = sqrt.(cov_mIRF)    
     mCIl = mIRF - 1.96.*mStd
@@ -147,13 +146,13 @@ function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64, A0inv::A
         end
         Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
         β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
-        mIRF = [mIRF vec(β)]                       # reduced form IRF
+        mIRF = [mIRF vec(A0inv'*β)]                       # reduced form IRF
         
-        Σ_u = newey_west(ys,yt,Mx,β)
+        Σ_u = newey_west(ys,yt,Mx,β,h)
         
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
-        Σ_mIRF = kron(eye(K), mIRFinv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
     mStd = sqrt.(cov_mIRF+cov_Σ)    
@@ -178,7 +177,7 @@ function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64)
         β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
         mIRF = [mIRF vec(β)]                       # reduced form IRF
         
-        Σ_u = newey_west(ys,yt,Mx,β)
+        Σ_u = newey_west(ys,yt,Mx,β,h)
         
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
@@ -214,13 +213,13 @@ function get_lp_component(z::Array,p::Int64,H::Int64)
     ys = z[p+1:T,:]
     yt = z[p:T-1,:]                  # RHS variable of interest: y(t)
     x = ones(T-p,1)                  # constant term
-    for j=2:pbar
+    for j=2:p   
         x = [x z[p+1-j:T-j,:]]       # other RHS variables: y(t-1)~y(t-p+1)
     end
     return ys,yt,x
 end
 
-function lp_estimator(ys::Array,yt::Array,x::Array)
+function lp_estimator(ys::Array,yt::Array,x::Array,t::Int64)
     Mx = get_annhilation_matrix(x)    # annhilation matrix **
     β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
     u  = get_lp_residual(ys,yt,Mx,β)  # residual from LPs
@@ -236,7 +235,7 @@ get_lp_residual(ys::Array,yt::Array,Mx::Array,β::Array) = Mx*ys - Mx*yt*β
 function localprojection_lagorder(z::Array,pbar::Int64,H::Int64,ic::String)
     T,K = size(z)
     t     = T-pbar
-    vIC  = zeros(H,1)
+    vIC  = Array{Int64}(H)
     Ys,Yt,X = get_lp_component(z,pbar,H)
     for j = 1:H                                  # loop for horizon h of IRF
         IC = zeros(pbar,1)                       # the vector of AIC(p)
@@ -244,7 +243,7 @@ function localprojection_lagorder(z::Array,pbar::Int64,H::Int64,ic::String)
         yt = Yt[1:end-j+1,:]                     # regressor of interest: yt
         for m = 1:pbar                           # loop for lag order selection
             x = X[1:end-j+1,1:(m-1)*K+1]         # other independent variables
-            β, u, Σ = lp_estimator(ys,yt,x)
+            β, u, Σ = lp_estimator(ys,yt,x,t)
             if ic == "aic"
                 IC[m]  = log(det(Σ)) + 2*(K^2*m)/t                      # AIC statistic
             elseif ic == "bic"
@@ -375,22 +374,22 @@ function elimat(m::Int64)
     return L
 end
 
-function get_lag_length(D::Array, pbar::Integer)
-    IC   = zeros(pbar,1)
+function get_lag_length(y::Array, pbar::Int64,ic::String,inter::Bool)
+    IC   = Array{Float64}(pbar)
     for p = 1:pbar
-        V = VAR(D,p,false)
-        n,m = size(V.X)
-        t = n-p
-        sig = V.Σ/t
+        V = VAR(y,p,inter)
+        n,m = size(V.X)::Tuple{Int64,Int64}
+        t = convert(Float64,n-p)
+        Σ =  (V.Σ./t)::Array{Float64}
         if ic == "aic"
-            IC[p] = log(det(sig))+2*p*m^2/t
+            IC[p] = log(det(Σ))+2*p*m^2/t
         elseif ic == "bic"
-            IC[p] = log(det(sig))+(m^2*p)*log(t)/t
+            IC[p] = log(det(Σ))+(m^2*p)*log(t)/t
         elseif ic == "hqc"
-            IC[p] = log(det(sig))+2*log(log(t))*m^2*p/t
+            IC[p] = log(det(Σ))+2*log(log(t))*m^2*p/t
         elseif ic == "aicc"
             b = t/(t-(p*m+m+1))
-            IC[p] = t*(log(det(sig))+m)+2*b*(m^2*p+m*(m+1)/2)
+            IC[p] = t*(log(det(Σ))+m)+2*b*(m^2*p+m*(m+1)/2)
         elseif error("'ic' must be aic, bic, hqc or aicc")
         end
     end
@@ -399,119 +398,119 @@ function get_lag_length(D::Array, pbar::Integer)
     return length_ic
 end
 
-function get_lag_length_aic(D::Array, pbar::Integer, inter::Intercept)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,true)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        IC[p] = log(det(sig))+2*p*m^2/t
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_aic(D::Array, pbar::Integer, inter::Intercept)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,true)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         IC[p] = log(det(sig))+2*p*m^2/t
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
-function get_lag_length_aic(D::Array, pbar::Integer)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,false)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        IC[p] = log(det(sig))+2*p*m^2/t
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_aic(D::Array, pbar::Integer)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,false)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         IC[p] = log(det(sig))+2*p*m^2/t
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
-function get_lag_length_bic(D::Array, pbar::Integer, inter::Intercept)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,true)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        IC[p] = log(det(sig))+(m^2*p)*log(t)/t
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_bic(D::Array, pbar::Integer, inter::Intercept)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,true)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         IC[p] = log(det(sig))+(m^2*p)*log(t)/t
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
-function get_lag_length_bic(D::Array, pbar::Integer)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,false)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        IC[p] = log(det(sig))+(m^2*p)*log(t)/t
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_bic(D::Array, pbar::Integer)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,false)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         IC[p] = log(det(sig))+(m^2*p)*log(t)/t
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
-function get_lag_length_hqc(D::Array, pbar::Integer, inter::Intercept)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,true)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        IC[p] = log(det(sig))+2*log(log(t))*m^2*p/t
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_hqc(D::Array, pbar::Integer, inter::Intercept)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,true)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         IC[p] = log(det(sig))+2*log(log(t))*m^2*p/t
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
-function get_lag_length_hqc(D::Array, pbar::Integer)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,false)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        IC[p] = log(det(sig))+2*log(log(t))*m^2*p/t
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_hqc(D::Array, pbar::Integer)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,false)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         IC[p] = log(det(sig))+2*log(log(t))*m^2*p/t
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
-function get_lag_length_aicc(D::Array, pbar::Integer, inter::Intercept)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,true)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        b = t/(t-(p*m+m+1))
-        IC[p] = t*(log(det(sig))+m)+2*b*(m^2*p+m*(m+1)/2)
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_aicc(D::Array, pbar::Integer, inter::Intercept)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,true)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         b = t/(t-(p*m+m+1))
+#         IC[p] = t*(log(det(sig))+m)+2*b*(m^2*p+m*(m+1)/2)
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
-function get_lag_length_aicc(D::Array, pbar::Integer)
-    IC   = zeros(pbar,1)
-    for p = 1:pbar
-        V = VAR(D,p,false)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        sig = (V.Σ./t)::Array{Float64}
-        b = t/(t-(p*m+m+1))
-        IC[p] = t*(log(det(sig))+m)+2*b*(m^2*p+m*(m+1)/2)
-    end
-    length_ic = indmin(IC)
-    println("The best lag-length is $length_ic")
-    return length_ic
-end
+# function get_lag_length_aicc(D::Array, pbar::Integer)
+#     IC   = zeros(pbar,1)
+#     for p = 1:pbar
+#         V = VAR(D,p,false)
+#         n,m = size(V.X)::Tuple{Int64,Int64}
+#         t = convert(Float64,n-p)
+#         sig = (V.Σ./t)::Array{Float64}
+#         b = t/(t-(p*m+m+1))
+#         IC[p] = t*(log(det(sig))+m)+2*b*(m^2*p+m*(m+1)/2)
+#     end
+#     length_ic = indmin(IC)
+#     println("The best lag-length is $length_ic")
+#     return length_ic
+# end
 
 function get_VAR1_rep(V::VAR)
     K = size(V.Σ,1)
@@ -554,7 +553,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64)
         STD[:,h+1] = vec((reshape(diag(real(sqrt.(complex(C*SIGa*C'+Cbar*SIGsig*Cbar')/(T-V.p)))),K,K))')
         COV2[:,h+1] = vec((reshape(diag(((Cbar*SIGsig*Cbar')/(T-V.p))),K,K))')
     end
-    return STD
+    return STD,COV2
 end
 
 function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
@@ -586,7 +585,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
         STD[:,h+1] = vec((reshape(diag(real(sqrt.(complex(C*SIGa*C'+Cbar*SIGsig*Cbar')/(T-V.p)))),K,K))')
         COV2[:,h+1] = vec((reshape(diag(((Cbar*SIGsig*Cbar')/(T-V.p))),K,K))')
     end
-    return STD
+    return STD,COV2
 end
 
 get_boot_init_int_draw(T::Int64,p::Int64) = Int64(trunc.((T-p+1)*rand()+1))
@@ -595,13 +594,13 @@ get_boot_init_vector_draw(T::Int64,p::Int64) = Array{Int64}(trunc.((T-p)*rand(T-
 function build_sample(V::VAR)
     K,T = size(V.Y)::Tuple{Int64,Int64}
     # Draw block of initial pre-sample values
-    y = zeros(K,T)                                       # bootstrap data
+    y = zeros(K,T)                             # bootstrap data
     u = zeros(K,T)                             # bootstrap innovations
-    iDraw = get_boot_init_int_draw(T,V.p)            # position of initial draw
-    y[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]                   # drawing pre-sample obs
+    iDraw = get_boot_init_int_draw(T,V.p)      # position of initial draw
+    y[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]      # drawing pre-sample obs
     # Draw innovations
-    vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
-    u[:, V.p+1:T] = V.ϵ[:,vDraw]                  # drawing innovations
+    vDraw = get_boot_init_vector_draw(T,V.p)   # index for innovation draws
+    u[:, V.p+1:T] = V.ϵ[:,vDraw]               # drawing innovations
     @inbounds for i = V.p+1:T
         y[:,i] = u[:,i]
         for j =  1:V.p
@@ -614,13 +613,13 @@ end
 function build_sample(V::VAR,inter::Intercept)
     K,T = size(V.Y)::Tuple{Int64,Int64}
     # Draw block of initial pre-sample values
-    y = zeros(K,T)                                       # bootstrap data
+    y = zeros(K,T)                             # bootstrap data
     u = zeros(K,T)                             # bootstrap innovations
-    iDraw = get_boot_init_int_draw(T,V.p)            # position of initial draw
-    y[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]                   # drawing pre-sample obs
+    iDraw = get_boot_init_int_draw(T,V.p)      # position of initial draw
+    y[:,1:V.p] = V.Y[:,iDraw:iDraw+V.p-1]      # drawing pre-sample obs
     # Draw innovations
-    vDraw = get_boot_init_vector_draw(T,V.p)    # index for innovation draws
-    u[:, V.p+1:T] = V.ϵ[:,vDraw]                  # drawing innovations
+    vDraw = get_boot_init_vector_draw(T,V.p)   # index for innovation draws
+    u[:, V.p+1:T] = V.ϵ[:,vDraw]               # drawing innovations
     @inbounds for i = V.p+1:T
         y[:,i] = V.β[:,1] + u[:,i]
         for j =  1:V.p
@@ -877,6 +876,6 @@ function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
 end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!
-export localprojection_lagorder
+export localprojection_lagorder, irf_ci_asymptotic
 
 end # end of the module

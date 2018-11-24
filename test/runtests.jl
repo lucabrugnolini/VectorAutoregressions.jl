@@ -1,7 +1,12 @@
-using VectorAutoregressions, Base.Test
+using VectorAutoregressions
+using Base.Test
 
+#-----------Set base-path------------------------------------------
+path = Pkg.dir("VectorAutoregressions")
+
+#--------------------Test VAR model---------------------------------------------------------
 # comparison against http://www-personal.umich.edu/~lkilian/figure9_1_chol.zip
-y = readdlm(joinpath(Pkg.dir("VectorAutoregressions"),"test","cholvar_test_data.csv"),',')
+y = readdlm(joinpath(path,"test","cholvar_test_data.csv"),',')
 
 V = VAR(y, 4, true)
 
@@ -41,10 +46,10 @@ mIRFb = IRFs_b(V,4,10,true)
         ]
 
 
-# Test for BVAR
+#--------------------Test BVAR model---------------------------------------------------------
 # comparison against http://cremfi.econ.qmul.ac.uk/outgoing/bvar.zip
-include(joinpath(Pkg.dir("VectorAutoregressions"),"src","bvar.jl")) 
-y = readdlm(joinpath(Pkg.dir("VectorAutoregressions"),"test","bvar_data.csv"), ',')
+include(joinpath(path,"src","bvar.jl")) 
+y = readdlm(joinpath(path,"test","bvar_data.csv"), ',')
 y = y[:,1:3]
 prior = Hyperparameter()
 mForecast = fit_bvar(y,prior)
@@ -52,3 +57,50 @@ mForecast = fit_bvar(y,prior)
 @test isapprox([0.8510 1.4081 2.2570 2.3415 2.4622 2.5835 2.6867 2.5790 2.5897 2.5767],median(mForecast[:,:,1],1); atol = 1)
 @test isapprox([1.9614 2.2587 1.8328 1.8745 2.0870 2.2014 2.3303 2.5225 2.5453 2.59387],median(mForecast[:,:,2],1); atol = 1)
 @test isapprox([-0.3827 -0.2272 -0.1532 -0.0735 0.0784 0.1620 0.3764 0.5247 0.7264 0.8861],median(mForecast[:,:,3],1); atol = 1)
+
+#--------------------Test Local Projection IRFs---------------------------------------------------------
+# comparison against Kilian and Kim (2011) generated data from VAR(12)
+
+#-----------Load data----------------------------------------------
+y      = readcsv(joinpath(path,"test","lp_data.csv"))
+irfl   = readcsv(joinpath(path,"test","lp_test_lp_chol_irf.csv"))
+stdl   = readcsv(joinpath(path,"test","lp_test_lp_std.csv"))
+stdv   = readcsv(joinpath(path,"test","lp_test_var_stdv.csv"))
+COVsig = readcsv(joinpath(path,"test","lp_test_var_covsig.csv"))
+rfirfl = readcsv(joinpath(path,"test","lp_test_lp_rf_irf.csv"))
+
+#-----------Hyperparameter-----------------------------------------
+const p = 12 # max order of lag to test
+const H = 24    # horizon
+const intercept = true 
+
+#-----------Reduced form local projection IRFs-------------------
+RF_IRFs = IRFs_localprojection(y, p, H)
+mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
+
+#-----------Structural local projection IRFs-------------------
+# Using a VAR(pbar) as auxiliary model for cholesky identification
+V = VAR(y,p,intercept)
+A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
+mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
+
+IRF = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
+mIRF,CI = IRF.IRF, IRF.CI
+CIl,CIh = CI.CIl, CI.CIh
+
+@test isapprox(mRFIRFs,rfirfl)
+@test isapprox(A0inv,[0.721465    0.0          0.0        0.0
+               -0.0842337   2.68627      0.0        0.0
+                2.61134     0.724746    26.8394     0.0
+                0.0886017  -0.00940385   0.0693017  0.486568],
+                atol = 0.0001)
+@test isapprox(V.Σ, [0.520512   -0.0607717    1.88399   0.063923
+              -0.0607717   7.22317      1.7269   -0.0327246
+               1.88399     1.7269     727.695     2.08457
+               0.063923   -0.0327246    2.08457   0.249489],
+               atol = 0.0001)
+@test isapprox(mStd, stdv, atol = 0.1)
+@test isapprox(mCov_Σ, COVsig, atol = 0.1)
+@test isapprox(mIRF, irfl)
+@test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
+@test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
