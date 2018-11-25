@@ -130,7 +130,7 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
 
 #-----------Test LP lag-length selecion procedure----------------
-const pbar      # max order of lag to test
+const pbar = 12      # max order of lag to test
 
 #-----------Select lag-length with AIC, BIC, AICC, HQC-----------
 mlplag = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
