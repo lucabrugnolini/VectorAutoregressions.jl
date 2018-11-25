@@ -133,7 +133,7 @@ CIl,CIh = CI.CIl, CI.CIh
 const pbar      # max order of lag to test
 
 #-----------Select lag-length with AIC, BIC, AICC, HQC-----------
-mlplag = (localprojection_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
+mlplag = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
 
 @test mlplag == mlag
 

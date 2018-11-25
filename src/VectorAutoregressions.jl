@@ -232,7 +232,7 @@ get_annhilation_matrix(x) = size(x,1) |> λ -> eye(λ) - x/(x'*x)*x'
 get_lp_beta(ys::Array,yt::Array,Mx::Array) = (yt'*Mx*yt)\(yt'*Mx*ys)
 get_lp_residual(ys::Array,yt::Array,Mx::Array,β::Array) = Mx*ys - Mx*yt*β
 
-function localprojection_lagorder(z::Array,pbar::Int64,H::Int64,ic::String)
+function lp_lagorder(z::Array,pbar::Int64,H::Int64,ic::String)
     T,K = size(z)
     t     = T-pbar
     vIC  = Array{Int64}(H)
@@ -876,6 +876,6 @@ function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
 end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!
-export localprojection_lagorder, irf_ci_asymptotic
+export lp_lagorder, irf_ci_asymptotic
 
 end # end of the module
