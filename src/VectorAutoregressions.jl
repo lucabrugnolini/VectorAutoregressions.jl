@@ -75,24 +75,22 @@ function IRFs_ext_instrument(V::VAR,Z::Array,H::Int64,nrep::Int64, α::Array, in
     return IRFs(mIRF,CI)
 end
 
-function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
+function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
     T,K = size(z)
     mIRF = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H                          # IRF for Horizon 1~H
-        ph = paic[h]                     # lag-order for horizon h
+        ph = p[h]                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
         yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
         x = ones(T-ph-h+1,1)             # constant term
         for i = 2:ph
             x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
         end
-        Mx = eye(size(x,1))-x/(x'*x)*x'  # annhilation matrix
-        β = (yt'*Mx*yt)\(yt'*Mx*ys)      # IRF by Local Projection
+        Mx = get_annhilation_matrix(x)    # annhilation matrix **
+        β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
         mIRF = [mIRF vec(A0inv'*β)]      # reduced form IRF
-        
         Σ_u = newey_west(ys,yt,Mx,β,h)
-        
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                                 # var(vec(β))
         Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
@@ -104,24 +102,22 @@ function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64, A
     return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
-function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64)
+function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64)
     T,K = size(z)
     mIRF = vec(eye(K)) # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H      # IRF for Horizon 1~H
-        ph = paic[h]                     # lag-order for horizon h
+        ph = p[h]                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
         yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
         x = ones(T-ph-h+1,1)             # constant term
         for i = 2:ph
             x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
         end
-        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
-        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
+        Mx = get_annhilation_matrix(x)    # annhilation matrix **
+        β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
         mIRF = [mIRF vec(β)]                       # reduced form IRF
-        
         Σ_u = newey_west(ys,yt,Mx,β,h)
-        
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_β), K^2, 1)]
@@ -132,24 +128,22 @@ function IRFs_localprojection(z::Array{Float64}, paic::Array{Int64}, H::Int64)
     return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
-function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
+function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
     T,K = size(z)
     mIRF = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H           # IRF for Horizon 1~H
-        ph = paic                     # lag-order for horizon h
+        ph = p                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
         yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
         x = ones(T-ph-h+1,1)             # constant term
         for i = 2:ph
             x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
         end
-        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
-        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
+        Mx = get_annhilation_matrix(x)    # annhilation matrix **
+        β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
         mIRF = [mIRF vec(A0inv'*β)]                       # reduced form IRF
-        
         Σ_u = newey_west(ys,yt,Mx,β,h)
-        
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
         Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
@@ -161,24 +155,22 @@ function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64, A0inv::A
     return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
-function IRFs_localprojection(z::Array{Float64}, paic::Int64, H::Int64)
+function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64)
     T,K = size(z)
     mIRF = vec(eye(K)) # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)                            
     for h = 1:H     # IRF for Horizon 1~H
-        ph = paic                     # lag-order for horizon h
+        ph = p                     # lag-order for horizon h
         ys = z[ph+h:T,:]   
         yt = z[ph:T-h,:]                 # RHS variable of interest: y(t)
         x = ones(T-ph-h+1,1)             # constant term
         for i = 2:ph
             x = [x z[ph+1-i:T-i-h+1,:]]  # other RHS lags: y(t-1)~y(t-p+1)
         end
-        Mx = eye(size(x,1))-x/(x'*x)*x'        # annhilation matrix
-        β = (yt'*Mx*yt)\(yt'*Mx*ys)            # IRF by Local Projection
+        Mx = get_annhilation_matrix(x)    # annhilation matrix **
+        β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
         mIRF = [mIRF vec(β)]                       # reduced form IRF
-        
         Σ_u = newey_west(ys,yt,Mx,β,h)
-        
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_β), K^2, 1)]
