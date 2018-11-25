@@ -77,7 +77,8 @@ end
 
 function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
     T,K = size(z)
-    mIRF = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
+    vA0inv = vec(A0inv')
+    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H                          # IRF for Horizon 1~H
         ph = p[h]                     # lag-order for horizon h
@@ -89,13 +90,14 @@ function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64, A0in
         end
         Mx = get_annhilation_matrix(x)    # annhilation matrix **
         β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
-        mIRF = [mIRF vec(A0inv'*β)]      # reduced form IRF
+        push!(mIRF, vec(A0inv'*β))      # structural IRF
         Σ_u = newey_west(ys,yt,Mx,β,h)
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                                 # var(vec(β))
         Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
+    mIRF = mIRF'
     mStd = sqrt.(cov_mIRF+cov_Σ)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
@@ -104,7 +106,8 @@ end
 
 function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64)
     T,K = size(z)
-    mIRF = vec(eye(K)) # IRF for Horizon 0 --> reduce form
+    vA0inv = vec(eye(K))
+    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H      # IRF for Horizon 1~H
         ph = p[h]                     # lag-order for horizon h
@@ -116,12 +119,13 @@ function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64)
         end
         Mx = get_annhilation_matrix(x)    # annhilation matrix **
         β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
-        mIRF = [mIRF vec(β)]                       # reduced form IRF
+        push!(mIRF, vec(β))                      # reduced form IRF
         Σ_u = newey_west(ys,yt,Mx,β,h)
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_β), K^2, 1)]
     end
+    mIRF = mIRF'
     mStd = sqrt.(cov_mIRF)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
@@ -130,7 +134,8 @@ end
 
 function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
     T,K = size(z)
-    mIRF = vec(A0inv')      # IRF for Horizon 0 --> use auxiliary model for identification
+    vA0inv = vec(A0inv')
+    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H           # IRF for Horizon 1~H
         ph = p                     # lag-order for horizon h
@@ -142,13 +147,14 @@ function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64, A0inv::Arra
         end
         Mx = get_annhilation_matrix(x)    # annhilation matrix **
         β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
-        mIRF = [mIRF vec(A0inv'*β)]                       # reduced form IRF
+        push!(mIRF, vec(A0inv'*β))      # structural IRF
         Σ_u = newey_west(ys,yt,Mx,β,h)
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
         Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
+    mIRF = mIRF'
     mStd = sqrt.(cov_mIRF+cov_Σ)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
@@ -157,7 +163,8 @@ end
 
 function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64)
     T,K = size(z)
-    mIRF = vec(eye(K)) # IRF for Horizon 0 --> reduce form
+    vA0inv = vec(eye(K))
+    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)                            
     for h = 1:H     # IRF for Horizon 1~H
         ph = p                     # lag-order for horizon h
@@ -169,12 +176,13 @@ function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64)
         end
         Mx = get_annhilation_matrix(x)    # annhilation matrix **
         β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
-        mIRF = [mIRF vec(β)]                       # reduced form IRF
+        push!(mIRF, vec(β))                      # reduced form IRF
         Σ_u = newey_west(ys,yt,Mx,β,h)
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_β), K^2, 1)]
     end
+    mIRF = mIRF'
     mStd = sqrt.(cov_mIRF)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
