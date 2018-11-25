@@ -68,10 +68,13 @@ stdl   = readcsv(joinpath(path,"test","lp_test_lp_std.csv"))
 stdv   = readcsv(joinpath(path,"test","lp_test_var_stdv.csv"))
 COVsig = readcsv(joinpath(path,"test","lp_test_var_covsig.csv"))
 rfirfl = readcsv(joinpath(path,"test","lp_test_lp_rf_irf.csv"))
+mlag   = readcsv(joinpath(path,"test","lp_test_lp_laglength.csv"))
+
 
 #-----------Hyperparameter-----------------------------------------
-const p = 12 # max order of lag to test
+const p = 12    # lag length
 const H = 24    # horizon
+const pbar      # max order of lag to test
 const intercept = true 
 
 #-----------Reduced form local projection IRFs-------------------
@@ -126,3 +129,12 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(mIRF, irfl)
 @test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
+
+#-----------Test LP lag-length selecion procedure----------------
+const vP = p*ones(Int64,H) # vector of lag-length
+
+#-----------Select lag-length with AIC, BIC, AICC, HQC-----------
+mlplag = (localprojection_lagorder(y,pbar,H,lag_length_crit) for lag_length_crit in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
+
+@test mlplag == mlag
+
