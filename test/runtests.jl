@@ -104,3 +104,25 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(mIRF, irfl)
 @test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
+
+#-----------Test LP with different lag-length at different horizon-------
+const vP = p*ones(Int64,H) # vector of lag-length
+
+#-----------Reduced form local projection IRFs-------------------
+RF_IRFs = IRFs_localprojection(y, p, H)
+mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
+
+#-----------Structural local projection IRFs-------------------
+# Using a VAR(pbar) as auxiliary model for cholesky identification
+V = VAR(y,p,intercept)
+A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
+mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
+
+IRF = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
+mIRF,CI = IRF.IRF, IRF.CI
+CIl,CIh = CI.CIl, CI.CIh
+
+@test isapprox(mRFIRFs,rfirfl)
+@test isapprox(mIRF, irfl)
+@test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
+@test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
