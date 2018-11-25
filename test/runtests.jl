@@ -74,7 +74,6 @@ mlag   = readcsv(joinpath(path,"test","lp_test_lp_laglength.csv"))
 #-----------Hyperparameter-----------------------------------------
 const p = 12    # lag length
 const H = 24    # horizon
-const pbar      # max order of lag to test
 const intercept = true 
 
 #-----------Reduced form local projection IRFs-------------------
@@ -112,7 +111,7 @@ CIl,CIh = CI.CIl, CI.CIh
 const vP = p*ones(Int64,H) # vector of lag-length
 
 #-----------Reduced form local projection IRFs-------------------
-RF_IRFs = IRFs_localprojection(y, p, H)
+RF_IRFs = IRFs_localprojection(y, vP, H)
 mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
 
 #-----------Structural local projection IRFs-------------------
@@ -121,7 +120,7 @@ V = VAR(y,p,intercept)
 A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
-IRF = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
+IRF = IRFs_localprojection(y, vP, H, A0inv, mCov_Σ)
 mIRF,CI = IRF.IRF, IRF.CI
 CIl,CIh = CI.CIl, CI.CIh
 
@@ -131,10 +130,10 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
 
 #-----------Test LP lag-length selecion procedure----------------
-const vP = p*ones(Int64,H) # vector of lag-length
+const pbar      # max order of lag to test
 
 #-----------Select lag-length with AIC, BIC, AICC, HQC-----------
-mlplag = (localprojection_lagorder(y,pbar,H,lag_length_crit) for lag_length_crit in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
+mlplag = (localprojection_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
 
 @test mlplag == mlag
 
