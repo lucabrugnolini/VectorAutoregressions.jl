@@ -374,143 +374,35 @@ function elimat(m::Int64)
     return L
 end
 
-function get_lag_length(y::Array, pbar::Int64,ic::String,inter::Bool)
-    IC   = Array{Float64}(pbar)
+function var_lagorder(z::Array,pbar::Int64,ic::String)
+    T,K = size(z)::Tuple{Int64,Int64}
+    t   = convert(Float64,T-pbar)
+    IC  = zeros(pbar,1)
+    Y = z[pbar+1:T,:]                           # dependent variable
     for p = 1:pbar
-        V = VAR(y,p,inter)
-        n,m = size(V.X)::Tuple{Int64,Int64}
-        t = convert(Float64,n-p)
-        Σ =  (V.Σ./t)::Array{Float64}
-        if ic == "aic"
-            IC[p] = log(det(Σ))+2*p*m^2/t
+        X = ones(t,1)
+        for i = 1:p
+            X = [X z[pbar+1-i:T-i,:]]            # construct lagged regressors
+        end
+        β  = (X'*X)\(X'*Y)                    # estimate by multivariate LS **
+        u     = Y-X*β                         # errors
+        Σ   = (u'*u/t)::Array{Float64}
+        if ic == "aic"                           # variance of errors
+            IC[p]     = log(det(Σ))+2*p*K^2/t                      # AIC statistic
         elseif ic == "bic"
-            IC[p] = log(det(Σ))+(m^2*p)*log(t)/t
-        elseif ic == "hqc"
-            IC[p] = log(det(Σ))+2*log(log(t))*m^2*p/t
+            IC[p]   = log(det(Σ))+(K^2*p)*log(t)/t                # SIC statistic
         elseif ic == "aicc"
-            b = t/(t-(p*m+m+1))
-            IC[p] = t*(log(det(Σ))+m)+2*b*(m^2*p+m*(m+1)/2)
-        elseif error("'ic' must be aic, bic, hqc or aicc")
+            b = t/(t-(p*K+K+1))                    # COEFFICIENT FOR AICC
+            IC[p] = t*(log(det(Σ))+K)+2*b*(K^2*p+K*(K+1)/2)     # AICC
+        elseif ic == "hqc"
+            IC[p]   = log(det(Σ))+2*log(log(t))*K^2*p/t # HQC
+        elseif error("ic must be aic, bic, aicc or hqc")
         end
     end
     length_ic = indmin(IC)
     println("Using $ic the best lag-length is $length_ic")
     return length_ic
 end
-
-# function get_lag_length_aic(D::Array, pbar::Integer, inter::Intercept)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,true)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         IC[p] = log(det(sig))+2*p*m^2/t
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
-
-# function get_lag_length_aic(D::Array, pbar::Integer)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,false)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         IC[p] = log(det(sig))+2*p*m^2/t
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
-
-# function get_lag_length_bic(D::Array, pbar::Integer, inter::Intercept)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,true)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         IC[p] = log(det(sig))+(m^2*p)*log(t)/t
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
-
-# function get_lag_length_bic(D::Array, pbar::Integer)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,false)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         IC[p] = log(det(sig))+(m^2*p)*log(t)/t
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
-
-# function get_lag_length_hqc(D::Array, pbar::Integer, inter::Intercept)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,true)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         IC[p] = log(det(sig))+2*log(log(t))*m^2*p/t
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
-
-# function get_lag_length_hqc(D::Array, pbar::Integer)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,false)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         IC[p] = log(det(sig))+2*log(log(t))*m^2*p/t
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
-
-# function get_lag_length_aicc(D::Array, pbar::Integer, inter::Intercept)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,true)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         b = t/(t-(p*m+m+1))
-#         IC[p] = t*(log(det(sig))+m)+2*b*(m^2*p+m*(m+1)/2)
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
-
-# function get_lag_length_aicc(D::Array, pbar::Integer)
-#     IC   = zeros(pbar,1)
-#     for p = 1:pbar
-#         V = VAR(D,p,false)
-#         n,m = size(V.X)::Tuple{Int64,Int64}
-#         t = convert(Float64,n-p)
-#         sig = (V.Σ./t)::Array{Float64}
-#         b = t/(t-(p*m+m+1))
-#         IC[p] = t*(log(det(sig))+m)+2*b*(m^2*p+m*(m+1)/2)
-#     end
-#     length_ic = indmin(IC)
-#     println("The best lag-length is $length_ic")
-#     return length_ic
-# end
 
 function get_VAR1_rep(V::VAR)
     K = size(V.Σ,1)

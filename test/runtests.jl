@@ -133,7 +133,9 @@ CIl,CIh = CI.CIl, CI.CIh
 const pbar = 12      # max order of lag to test
 
 #-----------Select lag-length with AIC, BIC, AICC, HQC-----------
-mlplag = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
+mVARlag = (var_lagorder(y,pbar,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
+mLPlag  = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
 
-@test mlplag == mlag
+@test mLPlag == mlag
+@test mVARlag == [12 2 12 3]
 
