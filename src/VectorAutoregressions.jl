@@ -768,6 +768,6 @@ function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
 end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!
-export lp_lagorder, irf_ci_asymptotic
+export lp_lagorder,var_lagorder, irf_ci_asymptotic
 
 end # end of the module
