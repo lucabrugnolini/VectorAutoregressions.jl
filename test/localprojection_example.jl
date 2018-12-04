@@ -19,20 +19,20 @@ rfirfl = readcsv(joinpath(path,"test","lp_test_lp_rf_irf.csv"))
 #-----------Hyperparameter-----------------------------------------
 const pbar = 12 # max order of lag to test
 const H = 24    # horizon
-const intercept = true 
+const intercept = true
 
 #-----------Lag-length selection for local projection adn red.form IRFs-------------------
 #Ex. 1
-p = localprojection_lagorder(y,pbar,H,"aic") # using aic selection criteria
+p = lp_lagorder(y,pbar,H,"aic") # using aic selection criteria
 mIRFs = IRFs_localprojection(y, p, H)
 #Ex. 2
-p = localprojection_lagorder(y,pbar,H,"bic") # using bic selection criteria
+p = lp_lagorder(y,pbar,H,"bic") # using bic selection criteria
 mIRFs = IRFs_localprojection(y, p, H)
 #Ex. 3
-p = localprojection_lagorder(y,pbar,H,"aicc") # using aic correced selection criteria
+p = lp_lagorder(y,pbar,H,"aicc") # using aic correced selection criteria
 mIRFs = IRFs_localprojection(y, p, H)
 #Ex. 4
-p = localprojection_lagorder(y,pbar,H,"hqc") # using Hannan-Quinn selection criteria
+p = lp_lagorder(y,pbar,H,"hqc") # using Hannan-Quinn selection criteria
 mIRFs = IRFs_localprojection(y, p, H)
 #Ex. 5
 p = 12                                       # fixing the lag-length for all projections
