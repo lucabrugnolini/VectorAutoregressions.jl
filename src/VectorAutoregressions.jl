@@ -322,7 +322,7 @@ function lagmatrix(x::AbstractArray,p::Int64)
     T, K = size(x)
     k    = K*p+1
     idx  = repeat(1:K, p)
-    X    = Array{eltype(x)}(T-p, k)
+    X    = Array{eltype(x)}(undef, (T-p, k))
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -339,7 +339,7 @@ function lagmatrix(x::AbstractVector,p::Int64)
     K = 1
     k    = K*p+1
     idx  = repeat(1:K, p)
-    X    = Array{eltype(x)}(T-p, k)
+    X    = Array{eltype(x)}(undef, (T-p, k))
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -717,9 +717,9 @@ function irf_ci_wild_bootstrap(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64,α::
     (T,K) = size(y)
     (T_z, K_z) = size(Z)
     IRFS = GrowableArray(Matrix{Float64}(H+1, K))
-    CILv = Array{Float64}(length(α), size(IRFS,2))
+    CILv = Array{Float64}(undef, (length(α), size(IRFS,2)))
     CIHv = similar(CILv)
-    lower_bound = Array{Float64}(H+1, length(α))
+    lower_bound = Array{Float64}(undef, (H+1, length(α)))
     upper_bound = similar(lower_bound)
     res = u' 
     oneK = ones(1,K)
@@ -732,7 +732,7 @@ function irf_ci_wild_bootstrap(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64,α::
         Awc = A
         Ac = zeros(A[:,1])
     end
-    rr  = Array{Int16}(T)
+    rr  = Array{Int16}(undef, T)
     while count < nrep+1
         rand!(rr, [-1, 1])        
         resb = res.*rr[p+1:end]
@@ -753,7 +753,7 @@ function irf_ci_wild_bootstrap(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64,α::
         push!(IRFS, IRFr)
         count += 1
     end
-    CIl = Array{Float64}(length(α), H+1,K)
+    CIl = Array{Float64}(undef, (length(α), H+1, K))
     CIh = similar(CIl)
     for i in 1:K
         # FIX THIS POINT--AT THE MOMENT ONLY FIRST VARIABLE CI
