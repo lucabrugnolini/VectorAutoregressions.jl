@@ -5,6 +5,15 @@
 module VectorAutoregressions
 using Parameters, GrowableArrays
 
+using LinearAlgebra: I, cholesky
+eye(n) = Matrix(I(n))
+function eye(n, m)
+    out = zeros(n, m)
+    n = min(n, m)
+    out[1:n, 1:n] .= eye(n)
+    out
+end
+
 struct Intercept end
 
 struct VAR
@@ -422,7 +431,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64)
     SIGa = kron(inv(V.X*V.X'/(T-V.p)),V.Σ)
     # Calculation of stdev follows Lutkepohl(2005) p.111,93
     A = get_VAR1_rep(V)
-    A0inv = cholfact(V.Σ)[:L]
+    A0inv = cholesky(V.Σ).L
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
     J = [eye(K) zeros(K,K*(V.p-1))]
@@ -454,7 +463,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
     SIGa = SIGa[K+1:end,K+1:end]
     # Calculation of stdev follows Lutkepohl(2005) p.111,93
     A = get_VAR1_rep(V,V.inter)
-    A0inv = cholfact(V.Σ)[:L]
+    A0inv = cholesky(V.Σ).L
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
     J = [eye(K) zeros(K,K*(V.p-1))]
@@ -650,7 +659,7 @@ end
 
 function irf_chol(V::VAR, mVar1::Array, H::Int64)
     K = size(V.Σ,1)
-    mSigma = cholfact(V.Σ)[:L]::LowerTriangular  # Cholesky or reduced form
+    mSigma = cholesky(V.Σ).L::LowerTriangular  # Cholesky or reduced form
     J = [eye(K,K) zeros(K,K*(V.p-1))]
     mIRF = zeros(K^2,H+1)
     mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
