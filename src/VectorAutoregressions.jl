@@ -5,7 +5,8 @@
 module VectorAutoregressions
 using Parameters, GrowableArrays
 
-using LinearAlgebra: I, cholesky
+using Statistics
+using LinearAlgebra: I, cholesky, LowerTriangular, diag, eigvals
 eye(n) = Matrix(I(n))
 function eye(n, m)
     out = zeros(n, m)
