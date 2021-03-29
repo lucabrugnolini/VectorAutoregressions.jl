@@ -358,11 +358,15 @@ end
 function duplication(n::Int64)
     # Returns Magnus and Neudecker's duplication matrix of size n
     # VERY AMBIGUOUS FUNC
-    a = tril(ones(n,n))::Array{Float64}
-    i = find(a)::Vector{Int64}
-    a[i] = 1:size(i,1)
-    a = a + tril(a,-1)'
-    j = convert(Vector{Int64}, vec(a))::Vector{Int64}
+    a = LowerTriangular(ones(n, n))
+    inds = (a .== 1) # find(a)::Vector{Int64}
+    a[inds] .= 1:Int(sum(inds))
+    aT = transpose(a) - I
+    for i in 1:n
+        aT[i, i] = 0
+    end
+    a = a + aT
+    j = Int.(vec(a)) #convert(Vector{Int64}, vec(a))::Vector{Int64}
     m = trunc.(Int,(n*(n+1)/2))::Int64
     d = zeros(n*n,m)
     for r = 1:size(d,1)
