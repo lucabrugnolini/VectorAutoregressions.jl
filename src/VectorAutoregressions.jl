@@ -5,9 +5,9 @@
 module VectorAutoregressions
 using Parameters, GrowableArrays
 
-type Intercept end
+struct Intercept end
 
-type VAR
+struct VAR
     mData::Array
     Y::Array
     X::Array
@@ -24,19 +24,19 @@ function VAR(y::Array,p::Int64,i::Bool)
     return VAR(mData,Y,X,β,ϵ,Σ,p,Intercept())
 end
 
-abstract type CIs end
+abstract type  CIs end
 
-type IRFs
+struct IRFs
     IRF::Array
     CI::CIs
 end
 
-type CIs_asy <: CIs
+struct CIs_asy <: CIs
     CIl::Array
     CIh::Array
 end
 
-type CIs_boot <: CIs
+struct CIs_boot <: CIs
     CIl::Array
     CIh::Array
 end

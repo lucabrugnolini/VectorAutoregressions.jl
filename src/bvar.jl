@@ -6,7 +6,7 @@ using Parameters, GrowableArrays, StatsBase
 #     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 # end
 
-@with_kw type Hyperparameter
+@with_kw struct Hyperparameter
     λ::Range{Float64} = 0.1:0.1:1
     τ::Range{Float64} = 10*(0.1:0.1:1)
     ε::Float64 = 0.0001
