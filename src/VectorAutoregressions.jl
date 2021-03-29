@@ -88,7 +88,7 @@ end
 function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}, H::Int64, A0inv::AbstractArray{Float64},cov_Σ::AbstractArray{Float64})
     T,K = size(z)
     vA0inv = vec(A0inv')
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> use auxiliary model for identification
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H                          # IRF for Horizon 1~H
         ph = p[h]                     # lag-order for horizon h
@@ -117,7 +117,7 @@ end
 function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}, H::Int64)
     T,K = size(z)
     vA0inv = vec(eye(K))
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> reduce form
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H      # IRF for Horizon 1~H
         ph = p[h]                     # lag-order for horizon h
@@ -145,7 +145,7 @@ end
 function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64, A0inv::AbstractArray{Float64},cov_Σ::AbstractArray{Float64})
     T,K = size(z)
     vA0inv = vec(A0inv')
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> use auxiliary model for identification
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H           # IRF for Horizon 1~H
         ph = p                     # lag-order for horizon h
@@ -174,7 +174,7 @@ end
 function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64)
     T,K = size(z)
     vA0inv = vec(eye(K))
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> reduce form
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)                            
     for h = 1:H     # IRF for Horizon 1~H
         ph = p                     # lag-order for horizon h
