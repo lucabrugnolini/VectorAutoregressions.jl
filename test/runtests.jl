@@ -9,6 +9,8 @@ path = joinpath(dirname(pathof(VectorAutoregressions)), "..")
 #--------------------Test VAR model---------------------------------------------------------
 # comparison against http://www-personal.umich.edu/~lkilian/figure9_1_chol.zip
 
+@testset "VAR" begin
+
 y = readdlm(joinpath(path,"test","cholvar_test_data.csv"),',')
 
 V = VAR(y, 4, true)
@@ -48,6 +50,7 @@ mIRFb = IRFs_b(V,4,10,true)
         0.0520037579735191 -0.0341368375885218 -0.111284843056732 -0.0491881671489620
         ]
 
+end
 
 #--------------------Test BVAR model---------------------------------------------------------
 # comparison against http://cremfi.econ.qmul.ac.uk/outgoing/bvar.zip
@@ -79,6 +82,7 @@ const p = 12    # lag length
 const H = 24    # horizon
 const intercept = true 
 
+@testset "Local projection IRFs" begin
 #-----------Reduced form local projection IRFs-------------------
 RF_IRFs = IRFs_localprojection(y, p, H)
 mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
@@ -110,9 +114,12 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
 
+end
+
 #-----------Test LP with different lag-length at different horizon-------
 const vP = p*ones(Int64,H) # vector of lag-length
 
+@testset "Local projections (II)" begin
 #-----------Reduced form local projection IRFs-------------------
 RF_IRFs = IRFs_localprojection(y, vP, H)
 mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
@@ -132,9 +139,12 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
 
+end
+
 #-----------Test LP lag-length selecion procedure----------------
 const pbar = 12      # max order of lag to test
 
+@testset "select lag-length" begin
 #-----------Select lag-length with AIC, BIC, AICC, HQC-----------
 mVARlag = (var_lagorder(y,pbar,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
 mLPlag  = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
@@ -142,3 +152,4 @@ mLPlag  = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ 
 @test mLPlag == mlag
 @test mVARlag == [12 2 12 3]
 
+end
