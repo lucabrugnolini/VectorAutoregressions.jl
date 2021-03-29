@@ -490,7 +490,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
 end
 
 get_boot_init_int_draw(T::Int64,p::Int64) = Int64(trunc.((T-p+1)*rand()+1))
-get_boot_init_vector_draw(T::Int64,p::Int64) = Array{Int64}(trunc.((T-p)*rand(T-p)+1))
+get_boot_init_vector_draw(T::Int64,p::Int64) = Array{Int64}(trunc.((T-p)*rand(T-p) .+ 1))
 
 function build_sample(V::VAR)
     K,T = size(V.Y)::Tuple{Int64,Int64}
@@ -530,7 +530,7 @@ function build_sample(V::VAR,inter::Intercept)
     return y
 end
 
-col_mean(x::Array) = mean(x,2)
+col_mean(x::AbstractArray) = mean(x, dims = 2)
 test_bias_correction(x::Array) =  any(abs.(eigvals(x)).<1)
 
 function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool,inter::Intercept)
@@ -629,8 +629,8 @@ function get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
     mCILv = zeros(1,N)
     mCIHv = zeros(1,N)
     for i = 1:N
-        mCILv[:,i] = quantile(vec(mIRFbc[:,i]),0.025)
-        mCIHv[:,i] = quantile(vec(mIRFbc[:,i]),0.975)
+        mCILv[:,i] .= quantile(vec(mIRFbc[:,i]),0.025)
+        mCIHv[:,i] .= quantile(vec(mIRFbc[:,i]),0.975)
     end
     mCIL  = reshape(mCILv',H+1,K^2)'
     mCIH  = reshape(mCIHv',H+1,K^2)'
@@ -773,7 +773,7 @@ function gen_var1_data!(y::Array,mR::Array,mP,burnin::Int64)
         y[j,:] = mR*y[j-1,:] + mP*randn(K,1)   
     end
     y = y[burnin+1:end,:]                      
-    return y .- mean(y,1)
+    return y .- mean(y, dims = 1)
 end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!
