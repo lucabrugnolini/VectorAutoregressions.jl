@@ -5,9 +5,9 @@
 module VectorAutoregressions
 using Parameters, GrowableArrays
 
-using Statistics
-using LinearAlgebra: I, cholesky, LowerTriangular, diag, eigvals
-eye(n) = Matrix(I(n))
+using Statistics: mean, std, quantile
+using LinearAlgebra: I, cholesky, LowerTriangular, diag, eigvals, det
+eye(n) = float.(I(n))
 function eye(n, m)
     out = zeros(n, m)
     n = min(n, m)
@@ -204,7 +204,7 @@ function newey_west(ys::AbstractArray,yt::AbstractArray,Mx::AbstractArray,β::Ab
     u = Mx*ys - Mx*yt*β    # residual from LPs
     μ_u = zeros(1,K) 
     for i = 1:K 
-        μ_u[:,i] = mean(u[:,i])
+        μ_u[:,i] .= mean(u[:,i])
     end
     iu = size(u,1)
     u0 = u-kron(ones(iu,1),μ_u)
@@ -245,7 +245,7 @@ get_lp_residual(ys::AbstractArray,yt::AbstractArray,Mx::AbstractArray,β::Abstra
 function lp_lagorder(z::AbstractArray,pbar::Int64,H::Int64,ic::String)
     T,K = size(z)
     t     = T-pbar
-    vIC  = Array{Int64}(H)
+    vIC  = Array{Int64}(undef, H)
     Ys,Yt,X = get_lp_component(z,pbar,H)
     for j = 1:H                                  # loop for horizon h of IRF
         IC = zeros(pbar,1)                       # the vector of AIC(p)
@@ -266,7 +266,8 @@ function lp_lagorder(z::AbstractArray,pbar::Int64,H::Int64,ic::String)
             elseif error("ic must be aic, bic, aicc or hqc")
             end
         end
-        vIC[j] = indmin(IC)                      
+        _, ind = findmin(vec(IC))
+        vIC[j] = Int(ind)
     end
     return vIC
 end
@@ -391,7 +392,7 @@ end
 
 function var_lagorder(z::AbstractArray,pbar::Int64,ic::String)
     T,K = size(z)::Tuple{Int64,Int64}
-    t   = convert(Float64,T-pbar)
+    t   = Int(T-pbar)
     IC  = zeros(pbar,1)
     Y = z[pbar+1:T,:]                           # dependent variable
     for p = 1:pbar
@@ -414,9 +415,9 @@ function var_lagorder(z::AbstractArray,pbar::Int64,ic::String)
         elseif error("ic must be aic, bic, aicc or hqc")
         end
     end
-    length_ic = indmin(IC)
+    _, length_ic = findmin(vec(IC))
     println("Using $ic the best lag-length is $length_ic")
-    return length_ic
+    return Int(length_ic)
 end
 
 function get_VAR1_rep(V::VAR)
