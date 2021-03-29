@@ -662,9 +662,9 @@ function irf_chol(V::VAR, mVar1::Array, H::Int64)
     mSigma = cholesky(V.Σ).L::LowerTriangular  # Cholesky or reduced form
     J = [eye(K,K) zeros(K,K*(V.p-1))]
     mIRF = zeros(K^2,H+1)
-    mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
+    mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)
     for i = 1:H
-        mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
+        mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)
     end
     return mIRF
 end
@@ -674,9 +674,9 @@ function irf_reduce_form(V::VAR, mVar1::Array, H::Int64)
     mSigma = eye(K,K)
     J = [eye(K,K) zeros(K,K*(V.p-1))]
     mIRF = zeros(K^2,H+1)
-    mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)::Array
+    mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)
     for i = 1:H
-        mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)::Array
+        mIRF[:,i+1] = reshape((J*mVar1^i*J'*mSigma)',K^2,1)
     end
     return mIRF
 end
