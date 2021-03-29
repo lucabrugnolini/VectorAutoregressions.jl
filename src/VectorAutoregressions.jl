@@ -291,7 +291,7 @@ function lagmatrix(x::Array,p::Int64,inter::Intercept)
     sk = 1
     T, K = size(x)
     k    = K*p+1
-    idx  = repmat(1:K, p)
+    idx  = repeat(1:K, p)
     X    = Array{eltype(x)}(undef, (T-p, k))
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
@@ -310,7 +310,7 @@ function lagmatrix(x::Array,p::Int64)
     sk = 1
     T, K = size(x)
     k    = K*p+1
-    idx  = repmat(1:K, p)
+    idx  = repeat(1:K, p)
     X    = Array{eltype(x)}(T-p, k)
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
@@ -327,7 +327,7 @@ function lagmatrix(x::Vector,p::Int64)
     T = length(x)
     K = 1
     k    = K*p+1
-    idx  = repmat(1:K, p)
+    idx  = repeat(1:K, p)
     X    = Array{eltype(x)}(T-p, k)
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
