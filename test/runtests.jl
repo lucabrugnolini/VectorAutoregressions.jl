@@ -1,11 +1,14 @@
 using VectorAutoregressions
-using Base.Test
+using Test
+using DelimitedFiles: readdlm
+using LinearAlgebra: cholesky
 
 #-----------Set base-path------------------------------------------
-path = Pkg.dir("VectorAutoregressions")
+path = joinpath(dirname(pathof(VectorAutoregressions)), "..")
 
 #--------------------Test VAR model---------------------------------------------------------
 # comparison against http://www-personal.umich.edu/~lkilian/figure9_1_chol.zip
+
 y = readdlm(joinpath(path,"test","cholvar_test_data.csv"),',')
 
 V = VAR(y, 4, true)
@@ -62,13 +65,13 @@ mForecast = fit_bvar(y,prior)
 # comparison against Kilian and Kim (2011) generated data from VAR(12)
 
 #-----------Load data----------------------------------------------
-y      = readcsv(joinpath(path,"test","lp_data.csv"))
-irfl   = readcsv(joinpath(path,"test","lp_test_lp_chol_irf.csv"))
-stdl   = readcsv(joinpath(path,"test","lp_test_lp_std.csv"))
-stdv   = readcsv(joinpath(path,"test","lp_test_var_stdv.csv"))
-COVsig = readcsv(joinpath(path,"test","lp_test_var_covsig.csv"))
-rfirfl = readcsv(joinpath(path,"test","lp_test_lp_rf_irf.csv"))
-mlag   = readcsv(joinpath(path,"test","lp_test_lp_laglength.csv"))
+y      = readdlm(joinpath(path,"test","lp_data.csv"), ',')
+irfl   = readdlm(joinpath(path,"test","lp_test_lp_chol_irf.csv"), ',')
+stdl   = readdlm(joinpath(path,"test","lp_test_lp_std.csv"), ',')
+stdv   = readdlm(joinpath(path,"test","lp_test_var_stdv.csv"), ',')
+COVsig = readdlm(joinpath(path,"test","lp_test_var_covsig.csv"), ',')
+rfirfl = readdlm(joinpath(path,"test","lp_test_lp_rf_irf.csv"), ',')
+mlag   = readdlm(joinpath(path,"test","lp_test_lp_laglength.csv"), ',')
 
 
 #-----------Hyperparameter-----------------------------------------
@@ -83,7 +86,7 @@ mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
 #-----------Structural local projection IRFs-------------------
 # Using a VAR(pbar) as auxiliary model for cholesky identification
 V = VAR(y,p,intercept)
-A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
+A0inv = V.Σ |> λ -> cholesky(λ).L |> Matrix
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
 IRF = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
@@ -117,7 +120,7 @@ mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
 #-----------Structural local projection IRFs-------------------
 # Using a VAR(pbar) as auxiliary model for cholesky identification
 V = VAR(y,p,intercept)
-A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
+A0inv = V.Σ |> λ -> cholesky(λ).L |> Matrix
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
 IRF = IRFs_localprojection(y, vP, H, A0inv, mCov_Σ)
