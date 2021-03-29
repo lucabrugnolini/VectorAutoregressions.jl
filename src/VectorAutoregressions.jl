@@ -287,12 +287,12 @@ function fit(y::Array,p::Int64,inter::Intercept)
     return y',Y,X,β,ϵ,Σ,p
 end
 
-function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
+function lagmatrix(x::Array,p::Int64,inter::Intercept)
     sk = 1
     T, K = size(x)
     k    = K*p+1
     idx  = repmat(1:K, p)
-    X    = Array{F}(T-p, k)
+    X    = Array{eltype(x)}(undef, (T-p, k))
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -306,12 +306,12 @@ function lagmatrix{F}(x::Array{F},p::Int64,inter::Intercept)
     return X
 end
 
-function lagmatrix{F}(x::Array{F},p::Int64)
+function lagmatrix(x::Array,p::Int64)
     sk = 1
     T, K = size(x)
     k    = K*p+1
     idx  = repmat(1:K, p)
-    X    = Array{F}(T-p, k)
+    X    = Array{eltype(x)}(T-p, k)
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -322,13 +322,13 @@ function lagmatrix{F}(x::Array{F},p::Int64)
     return X[:,2:end]
 end
 
-function lagmatrix{F}(x::Vector{F},p::Int64)
+function lagmatrix(x::Vector,p::Int64)
     sk = 1
     T = length(x)
     K = 1
     k    = K*p+1
     idx  = repmat(1:K, p)
-    X    = Array{F}(T-p, k)
+    X    = Array{eltype(x)}(T-p, k)
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
