@@ -1,11 +1,16 @@
 using VectorAutoregressions
-using Base.Test
+using Test
+using DelimitedFiles: readdlm
+using LinearAlgebra: cholesky
 
 #-----------Set base-path------------------------------------------
-path = Pkg.dir("VectorAutoregressions")
+path = joinpath(dirname(pathof(VectorAutoregressions)), "..")
 
 #--------------------Test VAR model---------------------------------------------------------
 # comparison against http://www-personal.umich.edu/~lkilian/figure9_1_chol.zip
+
+@testset "VAR" begin
+
 y = readdlm(joinpath(path,"test","cholvar_test_data.csv"),',')
 
 V = VAR(y, 4, true)
@@ -45,10 +50,11 @@ mIRFb = IRFs_b(V,4,10,true)
         0.0520037579735191 -0.0341368375885218 -0.111284843056732 -0.0491881671489620
         ]
 
+end
 
 #--------------------Test BVAR model---------------------------------------------------------
 # comparison against http://cremfi.econ.qmul.ac.uk/outgoing/bvar.zip
-include(joinpath(path,"src","bvar.jl")) 
+#= include(joinpath(path,"src","bvar.jl")) 
 y = readdlm(joinpath(path,"test","bvar_data.csv"), ',')
 y = y[:,1:3]
 prior = Hyperparameter()
@@ -57,18 +63,18 @@ mForecast = fit_bvar(y,prior)
 @test isapprox([0.8510 1.4081 2.2570 2.3415 2.4622 2.5835 2.6867 2.5790 2.5897 2.5767],median(mForecast[:,:,1],1); atol = 1)
 @test isapprox([1.9614 2.2587 1.8328 1.8745 2.0870 2.2014 2.3303 2.5225 2.5453 2.59387],median(mForecast[:,:,2],1); atol = 1)
 @test isapprox([-0.3827 -0.2272 -0.1532 -0.0735 0.0784 0.1620 0.3764 0.5247 0.7264 0.8861],median(mForecast[:,:,3],1); atol = 1)
-
+ =#
 #--------------------Test Local Projection IRFs---------------------------------------------------------
 # comparison against Kilian and Kim (2011) generated data from VAR(12)
 
 #-----------Load data----------------------------------------------
-y      = readcsv(joinpath(path,"test","lp_data.csv"))
-irfl   = readcsv(joinpath(path,"test","lp_test_lp_chol_irf.csv"))
-stdl   = readcsv(joinpath(path,"test","lp_test_lp_std.csv"))
-stdv   = readcsv(joinpath(path,"test","lp_test_var_stdv.csv"))
-COVsig = readcsv(joinpath(path,"test","lp_test_var_covsig.csv"))
-rfirfl = readcsv(joinpath(path,"test","lp_test_lp_rf_irf.csv"))
-mlag   = readcsv(joinpath(path,"test","lp_test_lp_laglength.csv"))
+y      = readdlm(joinpath(path,"test","lp_data.csv"), ',')
+irfl   = readdlm(joinpath(path,"test","lp_test_lp_chol_irf.csv"), ',')
+stdl   = readdlm(joinpath(path,"test","lp_test_lp_std.csv"), ',')
+stdv   = readdlm(joinpath(path,"test","lp_test_var_stdv.csv"), ',')
+COVsig = readdlm(joinpath(path,"test","lp_test_var_covsig.csv"), ',')
+rfirfl = readdlm(joinpath(path,"test","lp_test_lp_rf_irf.csv"), ',')
+mlag   = readdlm(joinpath(path,"test","lp_test_lp_laglength.csv"), ',')
 
 
 #-----------Hyperparameter-----------------------------------------
@@ -76,6 +82,7 @@ const p = 12    # lag length
 const H = 24    # horizon
 const intercept = true 
 
+@testset "Local projection IRFs" begin
 #-----------Reduced form local projection IRFs-------------------
 RF_IRFs = IRFs_localprojection(y, p, H)
 mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
@@ -83,7 +90,7 @@ mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
 #-----------Structural local projection IRFs-------------------
 # Using a VAR(pbar) as auxiliary model for cholesky identification
 V = VAR(y,p,intercept)
-A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
+A0inv = V.Σ |> λ -> cholesky(λ).L |> Matrix
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
 IRF = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
@@ -107,9 +114,12 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
 
+end
+
 #-----------Test LP with different lag-length at different horizon-------
 const vP = p*ones(Int64,H) # vector of lag-length
 
+@testset "Local projections (II)" begin
 #-----------Reduced form local projection IRFs-------------------
 RF_IRFs = IRFs_localprojection(y, vP, H)
 mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
@@ -117,7 +127,7 @@ mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
 #-----------Structural local projection IRFs-------------------
 # Using a VAR(pbar) as auxiliary model for cholesky identification
 V = VAR(y,p,intercept)
-A0inv = V.Σ |> λ -> cholfact(λ)[:L] |> full
+A0inv = V.Σ |> λ -> cholesky(λ).L |> Matrix
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
 IRF = IRFs_localprojection(y, vP, H, A0inv, mCov_Σ)
@@ -129,9 +139,12 @@ CIl,CIh = CI.CIl, CI.CIh
 @test isapprox(CIl,(irfl - 1.96*stdl),atol = 0.1)
 @test isapprox(CIh,(irfl + 1.96*stdl),atol = 0.1)
 
+end
+
 #-----------Test LP lag-length selecion procedure----------------
 const pbar = 12      # max order of lag to test
 
+@testset "select lag-length" begin
 #-----------Select lag-length with AIC, BIC, AICC, HQC-----------
 mVARlag = (var_lagorder(y,pbar,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
 mLPlag  = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ -> hcat(collect(λ)...)
@@ -139,3 +152,4 @@ mLPlag  = (lp_lagorder(y,pbar,H,ic) for ic in ["aic","bic","aicc","hqc"]) |> λ 
 @test mLPlag == mlag
 @test mVARlag == [12 2 12 3]
 
+end
