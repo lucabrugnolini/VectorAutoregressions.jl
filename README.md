@@ -11,7 +11,7 @@ Vector autoregressive models for Julia
 
 ## Installation
 ```julia
-Pkg.clone("https://github.com/lucabrugnolini/VectorAutoregressions.jl")
+Pkg.add("https://github.com/lucabrugnolini/VectorAutoregressions.jl")
 ```
 ## Introduction
 This package is a work in progress for the estimation and identification of Vector Autoregressive (VAR) models.
@@ -32,7 +32,7 @@ This package is a work in progress for the estimation and identification of Vect
       - [ ] Sign restrictions
       - [ ] Heteroskedasticity
       - [x] External instruments (ex. high-frequency,narrative)
-        - [x] Wild bootstrap 
+        - [x] Wild bootstrap
     - [x] Confidence bands
       - [x] Asymptotic
       - [x] Bootstrap
@@ -62,7 +62,7 @@ nrep = 500 #bootstrap sample
 V = VAR(y,p,intercept)
 
 # Estimate IRFs - Cholesky identification
-T,K = size(y) 
+T,K = size(y)
 mIRFa = IRFs_a(V,H,intercept) #asymptotic conf. bandf
 mIRFb = IRFs_b(V,H,nrep,intercept) #bootstrap conf. bands
 
