@@ -1,8 +1,11 @@
 #--------------Replicating Gertler and Karadi 2015-----------------------
 
 #---------------------Load Packages--------------------------------------
-using Plots, VectorAutoregressions
+using VectorAutoregressions
+using Plots
 pyplot()
+using Random, LinearAlgebra 
+using Statistics, DelimitedFiles, GrowableArrays
 
 #--------------------Load Data-------------------------------------------
 X,names = readdlm("/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/test/gertler_karadi_var_data.csv",',',header=true)

@@ -3,7 +3,7 @@
 # Kilian and Kim 2011, Cremfi codes, Geertler and Karadi 2015
 
 module VectorAutoregressions
-using Parameters, GrowableArrays
+using Parameters, GrowableArrays, LinearAlgebra, Statistics
 
 using Statistics: mean, std, quantile
 using LinearAlgebra: I, cholesky, LowerTriangular, diag, eigvals, det
@@ -104,10 +104,10 @@ function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}
         Σ_u = newey_west(ys,yt,Mx,β,h)
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                                 # var(vec(β))
-        Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        Σ_mIRF = kron(Matrix(1.0I,K,K) , A0inv')*Σ_β*kron(Matrix(1.0I,K,K) , A0inv')'    # var(vec(A0inv*β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
-    mIRF = mIRF'
+    mIRF = Array(mIRF')
     mStd = sqrt.(cov_mIRF+cov_Σ)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
@@ -161,14 +161,14 @@ function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64, A0i
         Σ_u = newey_west(ys,yt,Mx,β,h)
         invytMxyt  = inv(yt'*Mx*yt)
         Σ_β = kron(Σ_u, invytMxyt)                               # var(vec(β))
-        Σ_mIRF = kron(eye(K), A0inv')*Σ_β*kron(eye(K), A0inv')'    # var(vec(A0inv*β))
+        Σ_mIRF = kron(Matrix(1.0I,K,K) , A0inv')*Σ_β*kron(Matrix(1.0I,K,K) , A0inv')'    # var(vec(A0inv*β))
         cov_mIRF = [cov_mIRF reshape(diag(Σ_mIRF), K^2, 1)]
     end
     mIRF = mIRF'
     mStd = sqrt.(cov_mIRF+cov_Σ)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
-    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh)), mStd
 end
 
 function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64)
@@ -352,7 +352,7 @@ end
 
 function commutation(n::Int64, m::Int64)
     # returns Magnus and Neudecker's commutation matrix of dimensions n by m
-    k = reshape(kron(vec(eye(n)), eye(m)), n*m, n*m)
+    k = reshape(kron(vec(Matrix(1.0I,n,n)), Matrix(1.0I,m,m)), n*m, n*m)
     return k
 end
 
@@ -380,7 +380,7 @@ end
 function elimat(m::Int64)
     # elimat(m) returns the elimination matrix Lm
     # The elimination matrix Lm is for any matrix F, Vech(F)=Lm Vec(F)
-    A = eye(m^2)
+    A = Matrix(1.0I,m^2,m^2) 
     L = A[1:m,:]
     for n in 2:m
         S = A[m*(n-1)+1:n*m,:]
@@ -396,7 +396,7 @@ function var_lagorder(z::AbstractArray,pbar::Int64,ic::String)
     IC  = zeros(pbar,1)
     Y = z[pbar+1:T,:]                           # dependent variable
     for p = 1:pbar
-        X = ones(t,1)
+        X = ones(Int(t),1)
         for i = 1:p
             X = [X z[pbar+1-i:T-i,:]]            # construct lagged regressors
         end
@@ -441,14 +441,14 @@ function irf_ci_asymptotic(V::VAR, H::Int64)
     A0inv = cholesky(V.Σ).L
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
-    J = [eye(K) zeros(K,K*(V.p-1))]
+    J = [Matrix(1.0I,K,K)  zeros(K,K*(V.p-1))]
     L = elimat(K)
     Kk = commutation(K,K)
-    Hk = L'/(L*(eye(K^2)+Kk)*kron(A0inv,eye(K))*L')
+    Hk = L'/(L*(Matrix(1.0I,K^2,K^2) +Kk)*kron(A0inv,Matrix(1.0I,K,K) )*L')
     D = duplication(K)
     Dplus = (D'*D)\D'
     SIGsig = 2*Dplus*kron(V.Σ,V.Σ)*Dplus'
-    Cbar0 = kron(eye(K),J*eye(K*V.p)*J')*Hk
+    Cbar0 = kron(Matrix(1.0I,K,K) ,J*Matrix(1.0I,K*V.p,K*V.p) *J')*Hk
     STD[:,1] = vec((reshape(diag(real(sqrt.(complex(Cbar0*SIGsig*Cbar0'/(T-V.p))))),K,K))')
     COV2[:,1] = vec((reshape(diag((Cbar0*SIGsig*Cbar0'/(T-V.p))),K,K))')
     for h=1:H
@@ -456,8 +456,8 @@ function irf_ci_asymptotic(V::VAR, H::Int64)
         for m=0:(h-1)
             Gi += kron(J*(A')^(h-1-m),J*(A^m)*J')
         end
-        C = kron(A0inv',eye(K))*Gi
-        Cbar = kron(eye(K),J*A^h*J')*Hk
+        C = kron(A0inv',Matrix(1.0I,K,K) )*Gi
+        Cbar = kron(Matrix(1.0I,K,K) ,J*A^h*J')*Hk
         STD[:,h+1] = vec((reshape(diag(real(sqrt.(complex(C*SIGa*C'+Cbar*SIGsig*Cbar')/(T-V.p)))),K,K))')
         COV2[:,h+1] = vec((reshape(diag(((Cbar*SIGsig*Cbar')/(T-V.p))),K,K))')
     end
@@ -473,14 +473,14 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
     A0inv = cholesky(V.Σ).L
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
-    J = [eye(K) zeros(K,K*(V.p-1))]
+    J = [Matrix(1.0I,K,K)  zeros(K,K*(V.p-1))]
     L = elimat(K)
     Kk = commutation(K,K)
-    Hk = L'/(L*(eye(K^2)+Kk)*kron(A0inv,eye(K))*L')
+    Hk = L'/(L*(Matrix(1.0I,K^2,K^2) +Kk)*kron(A0inv,Matrix(1.0I,K,K) )*L')
     D = duplication(K)
     Dplus = (D'*D)\D'
     SIGsig = 2*Dplus*kron(V.Σ,V.Σ)*Dplus'
-    Cbar0 = kron(eye(K),J*eye(K*V.p)*J')*Hk
+    Cbar0 = kron(Matrix(1.0I,K,K) ,J*Matrix(1.0I,K*V.p,K*V.p)*J')*Hk
     STD[:,1] = vec((reshape(diag(real(sqrt.(complex(Cbar0*SIGsig*Cbar0'/(T-V.p))))),K,K))')
     COV2[:,1] = vec((reshape(diag((Cbar0*SIGsig*Cbar0'/(T-V.p))),K,K))')
     for h=1:H
@@ -488,8 +488,8 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
         for m=0:(h-1)
             Gi += kron(J*(A')^(h-1-m),J*(A^m)*J')
         end
-        C = kron(A0inv',eye(K))*Gi
-        Cbar = kron(eye(K),J*A^h*J')*Hk
+        C = kron(A0inv',Matrix(1.0I,K,K) )*Gi
+        Cbar = kron(Matrix(1.0I,K,K) ,J*A^h*J')*Hk
         STD[:,h+1] = vec((reshape(diag(real(sqrt.(complex(C*SIGa*C'+Cbar*SIGsig*Cbar')/(T-V.p)))),K,K))')
         COV2[:,h+1] = vec((reshape(diag(((Cbar*SIGsig*Cbar')/(T-V.p))),K,K))')
     end
@@ -546,7 +546,7 @@ function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool,inter::Int
     @inbounds for j = 1:nrep
         # Recursively construct sample
         yr = build_sample(V,V.inter)
-        yr = (yr .- col_mean(yr))'  # demean yr bootstrap data
+        yr = Array((yr .- col_mean(yr))')  # demean yr bootstrap data
         #pr = V.p # also using lag length selection
         Vr = VAR(yr,V.p,true)
         # Bias correction: if the largest root of the companion matrix
@@ -568,7 +568,7 @@ function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool)
     @inbounds for j = 1:nrep
         # Recursively construct sample
         yr = build_sample(V)
-        yr = (yr .- col_mean(yr))'  # demean yr bootstrap data
+        yr = Array((yr .- col_mean(yr))')  # demean yr bootstrap data
         #pr = V.p # also using lag length selection
         Vr = VAR(yr,V.p,false)
         # Bias correction: if the largest root of the companion matrix
@@ -606,14 +606,14 @@ function bias_correction(V::VAR,mVar1::AbstractArray)
     K,T = size(V.Y)::Tuple{Int64,Int64}
     mSigma = get_companion_vcv(V)
     mSigma_y = get_sigma_y(V,mVar1,mSigma)
-    I = eye(K*V.p, K*V.p)
-    B = mVar1'
+    II = Matrix(1.0I,K*V.p, K*V.p)
+    B = Array(mVar1')
     vEigen = eigvals(mVar1)
-    mSum_eigen = zeros(K*V.p,K*V.p)
+    global mSum_eigen = zeros(K*V.p,K*V.p)
     for h = 1:K*V.p
-        mSum_eigen += vEigen[h].\(I - vEigen[h]*B)
+        mSum_eigen += vEigen[h].\(II - vEigen[h]*B)
     end
-    mBias = get_bias(mSigma,mSigma_y,B,I,mSum_eigen)
+    mBias = get_bias(mSigma,mSigma_y,B,II,mSum_eigen)
     mAbias = -mBias/T
     return mBcA = get_proportional_bias_corr(mVar1,mAbias)
 end
@@ -678,8 +678,8 @@ end
 
 function irf_reduce_form(V::VAR, mVar1::AbstractArray, H::Int64)
     K = size(V.Σ,1)
-    mSigma = eye(K,K)
-    J = [eye(K,K) zeros(K,K*(V.p-1))]
+    mSigma = Matrix(1.0I,K,K)
+    J = [Matrix(1.0I,K,K) zeros(K,K*(V.p-1))]
     mIRF = zeros(K^2,H+1)
     mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)
     for i = 1:H
@@ -698,8 +698,29 @@ function irf_ext_instrument(V::VAR,Z::AbstractArray,H::Int64,intercept::Bool)
     Ση₁Z = ΣηZ[1:1,:]
     H1 = ΣηZ*Ση₁Z'./(Ση₁Z*Ση₁Z')
     A0inv = [H1 zeros(K,K-1)]
-    A = [B[:,2:end];[eye(K*(p-1)) zeros(K*(p-1),K)]]
-    J = [eye(K,K) zeros(K,K*(p-1))]
+    A = [B[:,2:end];[Matrix(1.0I,K*(p-1),K*(p-1)) zeros(K*(p-1),K)]]
+    J = [Matrix(1.0I,K,K) zeros(K,K*(p-1))]
+    IRF = GrowableArray(A0inv[:,1])
+    #HD = GrowableArray(zeros(K,K))
+    for h in 1:H
+        C = J*A^h*J'    
+        push!(IRF, (C*A0inv)[:,1])    
+    end
+    return IRF
+end
+
+function irf_ext_instrument(V::VAR,Z::Vector{Float64},H::Int64,intercept::Bool)
+    # Version improved by G. Ragusa
+    y,B,Σ,U,p = V.Y',V.β,V.Σ,V.ϵ,V.p
+    (T,K) = size(y)
+    T_z = size(Z)
+    ZZ = Z[p+1:end,:]
+    ΣηZ = U[:,T-T_z+p+1:end]*ZZ
+    Ση₁Z = ΣηZ[1:1,:]
+    H1 = ΣηZ*Ση₁Z'./(Ση₁Z*Ση₁Z')
+    A0inv = [H1 zeros(K,K-1)]
+    A = [B[:,2:end];[Matrix(1.0I,K*(p-1),K*(p-1)) zeros(K*(p-1),K)]]
+    J = [Matrix(1.0I,K,K) zeros(K,K*(p-1))]
     IRF = GrowableArray(A0inv[:,1])
     #HD = GrowableArray(zeros(K,K))
     for h in 1:H
@@ -757,8 +778,8 @@ function irf_ci_wild_bootstrap(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64,α::
     CIh = similar(CIl)
     for i in 1:K
         # FIX THIS POINT--AT THE MOMENT ONLY FIRST VARIABLE CI
-        lower = mapslices(u->quantile(u, α./2), IRFS[2:end,:,i],1)'
-        upper = mapslices(u->quantile(u, 1-α./2), IRFS[2:end,:,i],1)' 
+        lower = mapslices(u->quantile(u, α./2), IRFS[2:end,:,i],dims=1)'
+        upper = mapslices(u->quantile(u, 1 .- α./2), IRFS[2:end,:,i],dims=1)' 
         CIl[:,:,i] = lower'
         CIh[:,:,i] = upper'
     end
@@ -777,7 +798,7 @@ end
 function gen_var1_data!(y::AbstractArray,mR::AbstractArray,mP,burnin::Int64)
     T,K = size(y)
     for j = 2:T                          
-        y[j,:] = mR*y[j-1,:] + mP*randn(K,1)   
+        y[j,:] = B*y[j-1,:] + Σ*randn(K,1)   
     end
     y = y[burnin+1:end,:]                      
     return y .- mean(y, dims = 1)

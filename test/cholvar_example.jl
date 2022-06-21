@@ -1,8 +1,11 @@
 ## Example: 
 ## DGP - Bivariate VAR(1) Model from Kilian, RESTAT, 1998
 # B11 set to 0.01
-using VectorAutoregressions, Plots
+using VectorAutoregressions
+using Plots
 plotly()
+using Random, LinearAlgebra 
+using Statistics, GrowableArrays
 
 const T,K = 1000,2
 const H = 24
@@ -11,16 +14,17 @@ const p = 1
 const intercept = false
 const burnin = 100
 
-srand(1234)
+# Random.seed!(1234)
 mR  = [0.9 0.01; 0.5 0.5]             #  Coefficients of the 1st lag B11 set to 0.01
 mΣ_true = [1 0.3; 0.3 1]              #  vcv of u
-mP = cholfact(mΣ_true)[:L]            #  Cholesky PP'= Σ
-mI = eye(K) 
-mIRF_true = At_mul_Bt(mP,mI)[:]       # Initialize structural IRF
+#mP = cholfact(mΣ_true)[:L]            #  Cholesky PP'= Σ
+mP = cholesky(mΣ_true, Val(false)).L
+mI = Matrix(1.0I,K,K) 
+mIRF_true = (mP'*mI)[:]       # Initialize structural IRF
 # True IRF
 for h=1:H     
-    vIRF = At_mul_Bt(mP,mR^h)[:] 
-    mIRF_true = hcat(mIRF_true,vIRF)
+    vIRF = (mP*mR^h)[:] 
+    global  mIRF_true = hcat(mIRF_true,vIRF)
 end
 
 # Generate data from the VAR(1) DGP
