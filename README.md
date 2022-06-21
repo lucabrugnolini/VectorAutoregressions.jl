@@ -1,7 +1,7 @@
 # VectorAutoregressions.jl
 Vector autoregressive models for Julia
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://github.com/lucabrugnolini/VectorAutoregressions.jl/stable)
+[![Documenter](https://github.com/lucabrugnolini/VectorAutoregressions.jl/actions/workflows/Documenter.yml/badge.svg)](https://github.com/lucabrugnolini/VectorAutoregressions.jl/actions/workflows/Documenter.yml)
 [![Build Status](https://travis-ci.org/lucabrugnolini/VectorAutoregressions.jl.svg?branch=master)](https://travis-ci.org/lucabrugnolini/VectorAutoregressions.jl)
 [![Coverage Status](https://coveralls.io/repos/github/lucabrugnolini/VectorAutoregressions.jl/badge.svg?branch=master)](https://coveralls.io/github/lucabrugnolini/VectorAutoregressions.jl?branch=master)
 [![codecov](https://codecov.io/gh/lucabrugnolini/VectorAutoregressions.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/lucabrugnolini/VectorAutoregressions.jl)
