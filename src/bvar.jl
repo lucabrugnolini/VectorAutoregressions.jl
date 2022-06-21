@@ -1,4 +1,4 @@
-using Parameters, GrowableArrays, StatsBase
+using Parameters, GrowableArrays, StatsBase, SpecialFunctions, LinearAlgebra, Statistics, Random, DelimitedFiles
 
 #TODO: change bVAR --> VAR
 # function bVAR(y::Array,p::Int64,i::Bool,reps::Int64,burn::Int64,max_try::Int64,prior::Hyperparameter)
@@ -6,9 +6,9 @@ using Parameters, GrowableArrays, StatsBase
 #     return VAR(Y,X,β,ϵ,Σ,p,Intercept())
 # end
 
-@with_kw type Hyperparameter
-    λ::Range{Float64} = 0.1:0.1:1
-    τ::Range{Float64} = 10*(0.1:0.1:1)
+@with_kw struct Hyperparameter
+    λ::AbstractRange{Float64} = 0.1:0.1:1
+    τ::AbstractRange{Float64} = 10*(0.1:0.1:1)
     ε::Float64 = 0.0001
     p = 4
     H::Int64 = 10
@@ -20,10 +20,10 @@ end
 
 function get_prior(y::Array,p::Int64 = 1)
     T,K = size(y) 
-    μ = mean(y,1)'
-    σ = Array{Float64}(0)
-    δ = Array{Float64}(0)
-    e0 = Array{Float64}(T-p,0)
+    μ = mean(y,dims=1)'
+    σ = Array{Float64}(undef,0)
+    δ = Array{Float64}(undef,0)
+    e0 = Array{Float64}(undef,T-p,0)
     for i = 1:K
         ytemp = y[:,i]
         xtemp = [lagmatrix(ytemp,p) ones(length(ytemp)-p)]
@@ -41,12 +41,12 @@ function get_prior(y::Array,p::Int64 = 1)
     return μ, σ, δ, e0 
 end
 
-function lagmatrix{F}(x::Array{F},p::Int64)
+function lagmatrix(x::Array{F},p::Int64) where F
     sk = 1
     T, K = size(x)
     k    = K*p+1
-    idx  = repmat(1:K, p)
-    X    = Array{F}(T-p, k)
+    idx  = repeat(1:K, p)
+    X    = Array{F}(undef,T-p, k)
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -57,13 +57,13 @@ function lagmatrix{F}(x::Array{F},p::Int64)
     return X[:,2:end]
 end
 
-function lagmatrix{F}(x::Vector{F},p::Int64)
+function lagmatrix(x::Vector{F},p::Int64) where F
     sk = 1
     T = length(x)
     K = 1
     k    = K*p+1
-    idx  = repmat(1:K, p)
-    X    = Array{F}(T-p, k)
+    idx  = repeat(1:K, p)
+    X    = Array{F}(undef,T-p, k)
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -83,31 +83,31 @@ function create_dummies(λ::Float64,τ::Float64,δ::Array,ε::Float64,p::Int64,�
     end
     if λ > 0
         if ε > 0
-            yd1 = [diagm(σ.*δ)./λ;
+            yd1 = [diagm(0 => σ.*δ)./λ;
             zeros(K*(p-1),K);
-            diagm(σ);
+            diagm(0 => σ);
             zeros(1,K)]
             
-            jp = diagm(1:p)
-            xd1 = [hcat(kron(jp,diagm(σ)./λ), zeros((K*p),1));
+            jp = diagm(0 => 1:p)
+            xd1 = [hcat(kron(jp,diagm(0 => σ)./λ), zeros((K*p),1));
             zeros(K,(K*p)+1);
             hcat(zeros(1,K*p), ε)]
         else
-            yd1 = [diagm(σ.*δ)./λ;
+            yd1 = [diagm(0 => σ.*δ)./λ;
             zeros(K*(p-1),K);
-            diagm(σ)]
+            diagm(0 => σ)]
             
-            jp = diagm(1:p)
-            xd1 = [kron(jp,diagm(σ)./λ);
+            jp = diagm(0 => 1:p)
+            xd1 = [kron(jp,diagm(0 => σ)./λ);
             zeros(K,(K*p))] 
         end
     end
     if τ > 0
         if ε > 0
-            yd2 = diagm(δ.*μ)./τ
+            yd2 = diagm(0 => δ.*μ)./τ
             xd2 = [kron(ones(1,p),yd2) zeros(K,1)]
         else
-            yd2 = diagm(δ.*μ)./τ
+            yd2 = diagm(0 => δ.*μ)./τ
             xd2 = [kron(ones(1,p),yd2)]  
         end
     end
@@ -119,7 +119,7 @@ end
 function sum_loggamma(K::Int64,v::Int64)
     out = 0
     for i = 1:K
-        out = out + lgamma((v+1-i)/2)
+        out = out + logabsgamma((v+1-i)/2)[1]
     end
     return out
 end
@@ -151,7 +151,7 @@ function max_lik_var(y::Array,x::Array,yd::Array,xd::Array)
     e = y1-x1*b 
     sigma1 = e'*e
     
-    PP = inv(eye(T)+x*invxx0*x') 
+    PP = inv(Matrix(1.0I,T,T)+x*invxx0*x') 
     QQ = sigma0
     
     lngam_ratio = mgamln(K,v0)-mgamln(K,v1)
@@ -160,7 +160,7 @@ function max_lik_var(y::Array,x::Array,yd::Array,xd::Array)
     return out
 end
 
-function get_opt_lag_prior(y::Array,p::Int64,λ::Range{Float64},τ::Range{Float64},δ::Array,ε::Float64,μ::Array,σ::Array)
+function get_opt_lag_prior(y::Array,p::Int64,λ::AbstractRange{Float64},τ::AbstractRange{Float64},δ::Array,ε::Float64,μ::Array,σ::Array)
     K  =  size(y,2)
     outmlik = zeros(length(p),length(λ))
     tableL = zeros(length(p),length(λ))
@@ -197,7 +197,7 @@ function get_coef(β::Array,sigma::Array,ixx::Array,max_try::Int64,K::Int64,p::I
     control_stability = 0
     mβ = Array{}
     while check < 0 && num_try < max_try
-        mβ = β + (randn(1,K*(K*p+1))*chol(Hermitian(vstar)))'
+        mβ = β + (randn(1,K*(K*p+1))*(cholesky(Hermitian(vstar)).U))'
         
         control_stability = check_stability(mβ,K,p)
         if control_stability == 0
@@ -216,7 +216,7 @@ function check_stability(β::Array,K::Int64,p::Int64)
     Kp = K*p 
     K_p1 = K*(p-1)
     mCoef = zeros(Kp,Kp)
-    mCoef[K+1:Kp,1:K_p1] = eye(K_p1,K_p1)
+    mCoef[K+1:Kp,1:K_p1] = Matrix(1.0I,K_p1,K_p1)
     
     temp = reshape(β,Kp+1,K)
     temp = view(temp,1:Kp,1:K)'
@@ -231,7 +231,7 @@ function iwpq(v::Int64,ixpx::Array)
     z = zeros(v,k)
     mu = zeros(k,1)
     for i = 1:v
-        z[i,:]=(chol(Hermitian(ixpx))'*randn(k,1))'
+        z[i,:]=(cholesky(Hermitian(ixpx)).U'*randn(k,1))'
     end
     out = inv(z'*z)
     return out
@@ -244,7 +244,7 @@ function get_forecast(K::Int64, H::Int64, T::Int64, p::Int64, Y::SubArray, β::A
     # general set-up (lags, horizon, etc.)
     # -------------------------------------------------------------------------
     # Draw K(0,1) innovations for variance and mean equation:
-    csigma = chol(Hermitian(sigma))
+    csigma = (cholesky(Hermitian(sigma))).U
     uu = randn(H+p,K)
     # Note we only need H*K innovations, but adding an extra p draws makes 
     # the indexing in the loop below a bit cleaner.
@@ -252,7 +252,7 @@ function get_forecast(K::Int64, H::Int64, T::Int64, p::Int64, Y::SubArray, β::A
     yhat = zeros(H+p,K)
     yhat[1:p,:] = Y[T-p+1:T,:]
     for fi = p+1:H+p
-        xhat= Array{Float64}(0) 
+        xhat= Array{Float64}(undef,0) 
         for ji = 1:p
             xhat = vcat(xhat,yhat[fi-ji,:])
         end
@@ -277,8 +277,8 @@ function gibbs!(Y::Array,yd::Array,xd::Array,p::Int64,prior::Hyperparameter,mFor
     β0_fix = vec(x0\y0) # ols on the appended data
     β0 = vec(x0\y0) # ols on the appended data
     xx = x0'*x0
-    ixx = xx\eye(size(xx,2))  # inv(x0'x0) to be used later in the Gibbs sampling lgorithm
-    σ = eye(K) # starting value for sigma
+    ixx = xx\Matrix(1.0I,size(xx,2),size(xx,2))  # inv(x0'x0) to be used later in the Gibbs sampling algorithm
+    σ = Matrix(1.0I,K,K) # starting value for sigma
     igibbs = 1
     jgibbs = 0
     
@@ -314,8 +314,8 @@ function fit_bvar(y::Array,prior::Hyperparameter)
     @unpack λ ,τ ,ε ,p ,H ,reps ,burnin ,max_try ,update = prior 
     T,K = size(y)
     μ, σ, δ, e0  = get_prior(y)
-    p_star,λ_star,τ_star = get_opt_lag_prior(y,p,λ,τ,δ,ε,μ,σ)
-    yd,xd = create_dummies(λ_star[1],τ_star[1],δ,ε,Int(p_star[1]),μ,σ,K)
+    p_star,λ_star,τ_star = get_opt_lag_prior(y,p,λ,τ,δ,ε,Array(μ),σ)
+    yd,xd = create_dummies(λ_star[1],τ_star[1],δ,ε,Int(p_star[1]),Array(μ),σ,K)
     mForecast = zeros(reps-burnin,H,K) 
     gibbs!(y,yd,xd,Int(p_star[1]),prior,mForecast)
     return mForecast
