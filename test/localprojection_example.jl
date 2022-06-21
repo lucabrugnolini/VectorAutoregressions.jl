@@ -22,7 +22,7 @@ rfirfl = readdlm(joinpath(path,"test","lp_test_lp_rf_irf.csv"),',')
 #-----------Hyperparameter-----------------------------------------
 const pbar = 12 # max order of lag to test
 const H = 24    # horizon
-const intercept = true 
+const intercept = true
 
 #-----------Lag-length selection for local projection and red.form IRFs-------------------
 #Ex. 1

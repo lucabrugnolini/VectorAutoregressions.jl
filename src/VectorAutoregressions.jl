@@ -5,40 +5,50 @@
 module VectorAutoregressions
 using Parameters, GrowableArrays, LinearAlgebra, Statistics
 
+using Statistics: mean, std, quantile
+using LinearAlgebra: I, cholesky, LowerTriangular, diag, eigvals, det
+eye(n) = float.(I(n))
+function eye(n, m)
+    out = zeros(n, m)
+    n = min(n, m)
+    out[1:n, 1:n] .= eye(n)
+    out
+end
+
 struct Intercept end
 
 struct VAR
-    mData::Array
-    Y::Array
-    X::Array
-    β::Array
-    ϵ::Array
-    Σ::Array
+    mData::AbstractArray
+    Y::AbstractArray
+    X::AbstractArray
+    β::AbstractArray
+    ϵ::AbstractArray
+    Σ::AbstractArray
     p::Int64
     inter::Intercept
     VAR(mData,Y,X,β,ϵ,Σ,p,inter) = p <= 0 ? error("Lag-length error: 'p' must be strictly positive") : new(mData,Y,X,β,ϵ,Σ,p,inter)
 end
 
-function VAR(y::Array,p::Int64,i::Bool)
+function VAR(y::AbstractArray,p::Int64,i::Bool)
     i == false ? ((mData,Y,X,β,ϵ,Σ,p) = fit(y,p)) : ((mData,Y,X,β,ϵ,Σ,p) = fit(y,p,Intercept()))
     return VAR(mData,Y,X,β,ϵ,Σ,p,Intercept())
 end
 
-abstract type CIs end
+abstract type  CIs end
 
 struct IRFs
-    IRF::Array
+    IRF::AbstractArray
     CI::CIs
 end
 
 struct CIs_asy <: CIs
-    CIl::Array
-    CIh::Array
+    CIl::AbstractArray
+    CIh::AbstractArray
 end
 
 struct CIs_boot <: CIs
-    CIl::Array
-    CIh::Array
+    CIl::AbstractArray
+    CIh::AbstractArray
 end
 
 function IRFs_a(V::VAR,H::Int64,i::Bool)
@@ -69,16 +79,16 @@ function IRFs_b(V::VAR,H::Int64,nrep::Int64,i::Bool)
     return IRFs(mIRF,CI)
 end
 
-function IRFs_ext_instrument(V::VAR,Z::Array,H::Int64,nrep::Int64, α::Array, intercept::Bool)
+function IRFs_ext_instrument(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64, α::AbstractArray, intercept::Bool)
     mIRF = irf_ext_instrument(V, Z, H, intercept)
     CI = irf_ci_wild_bootstrap(V, Z, H, nrep, α, intercept)
     return IRFs(mIRF,CI)
 end
 
-function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
+function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}, H::Int64, A0inv::AbstractArray{Float64},cov_Σ::AbstractArray{Float64})
     T,K = size(z)
-    vA0inv = vec(Array(A0inv'))
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> use auxiliary model for identification
+    vA0inv = vec(A0inv')
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H                          # IRF for Horizon 1~H
         ph = p[h]                     # lag-order for horizon h
@@ -104,10 +114,10 @@ function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64, A0in
     return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
-function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64)
+function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}, H::Int64)
     T,K = size(z)
-    vA0inv = vec(Matrix(1.0I,K,K) )
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> reduce form
+    vA0inv = vec(eye(K))
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H      # IRF for Horizon 1~H
         ph = p[h]                     # lag-order for horizon h
@@ -132,10 +142,10 @@ function IRFs_localprojection(z::Array{Float64}, p::Array{Int64}, H::Int64)
     return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
-function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64, A0inv::Array{Float64},cov_Σ::Array{Float64})
+function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64, A0inv::AbstractArray{Float64},cov_Σ::AbstractArray{Float64})
     T,K = size(z)
-    vA0inv = vec(Array(A0inv'))
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> use auxiliary model for identification
+    vA0inv = vec(A0inv')
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> use auxiliary model for identification
     cov_mIRF = zeros(K^2,1)   
     for h = 1:H           # IRF for Horizon 1~H
         ph = p                     # lag-order for horizon h
@@ -161,10 +171,10 @@ function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64, A0inv::Arra
     return IRFs(mIRF,CIs_asy(mCIl, mCIh)), mStd
 end
 
-function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64)
+function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64)
     T,K = size(z)
-    vA0inv = vec(Matrix(1.0I,K,K) )
-    mIRF = GrowableArray(vA0inv)      # IRF for Horizon 0 --> reduce form
+    vA0inv = vec(eye(K))
+    mIRF = GrowableArray(copy(vA0inv))      # IRF for Horizon 0 --> reduce form
     cov_mIRF = zeros(K^2,1)                            
     for h = 1:H     # IRF for Horizon 1~H
         ph = p                     # lag-order for horizon h
@@ -189,7 +199,7 @@ function IRFs_localprojection(z::Array{Float64}, p::Int64, H::Int64)
     return IRFs(mIRF,CIs_asy(mCIl, mCIh))
 end
 
-function newey_west(ys::Array,yt::Array,Mx::Array,β::Array,h::Int64)
+function newey_west(ys::AbstractArray,yt::AbstractArray,Mx::AbstractArray,β::AbstractArray,h::Int64)
     T,K = size(yt)
     u = Mx*ys - Mx*yt*β    # residual from LPs
     μ_u = zeros(1,K) 
@@ -208,7 +218,7 @@ function newey_west(ys::Array,yt::Array,Mx::Array,β::Array,h::Int64)
     return Σ_u
 end
 
-function get_lp_component(z::Array,p::Int64,H::Int64)
+function get_lp_component(z::AbstractArray,p::Int64,H::Int64)
     T,K = size(z)
     ys = z[p+1:T,:]
     yt = z[p:T-1,:]                  # RHS variable of interest: y(t)
@@ -219,7 +229,7 @@ function get_lp_component(z::Array,p::Int64,H::Int64)
     return ys,yt,x
 end
 
-function lp_estimator(ys::Array,yt::Array,x::Array,t::Int64)
+function lp_estimator(ys::AbstractArray,yt::AbstractArray,x::AbstractArray,t::Int64)
     Mx = get_annhilation_matrix(x)    # annhilation matrix **
     β  = get_lp_beta(ys,yt,Mx)        # IRF by Local Projection **
     u  = get_lp_residual(ys,yt,Mx,β)  # residual from LPs
@@ -227,15 +237,15 @@ function lp_estimator(ys::Array,yt::Array,x::Array,t::Int64)
     return β, u, Σ
 end
 
-get_variance_estimator(u::Array,t::Int64) = u'u/t
-get_annhilation_matrix(x) = size(x,1) |> λ -> Matrix(1.0I,λ,λ)  - x/(x'*x)*x'
-get_lp_beta(ys::Array,yt::Array,Mx::Array) = (yt'*Mx*yt)\(yt'*Mx*ys)
-get_lp_residual(ys::Array,yt::Array,Mx::Array,β::Array) = Mx*ys - Mx*yt*β
+get_variance_estimator(u::AbstractArray,t::Int64) = u'u/t
+get_annhilation_matrix(x) = size(x,1) |> λ -> eye(λ) - x/(x'*x)*x'
+get_lp_beta(ys::AbstractArray,yt::AbstractArray,Mx::AbstractArray) = (yt'*Mx*yt)\(yt'*Mx*ys)
+get_lp_residual(ys::AbstractArray,yt::AbstractArray,Mx::AbstractArray,β::AbstractArray) = Mx*ys - Mx*yt*β
 
-function lp_lagorder(z::Array,pbar::Int64,H::Int64,ic::String)
+function lp_lagorder(z::AbstractArray,pbar::Int64,H::Int64,ic::String)
     T,K = size(z)
     t     = T-pbar
-    vIC  = Array{Int64}(undef,H)
+    vIC  = Array{Int64}(undef, H)
     Ys,Yt,X = get_lp_component(z,pbar,H)
     for j = 1:H                                  # loop for horizon h of IRF
         IC = zeros(pbar,1)                       # the vector of AIC(p)
@@ -256,12 +266,13 @@ function lp_lagorder(z::Array,pbar::Int64,H::Int64,ic::String)
             elseif error("ic must be aic, bic, aicc or hqc")
             end
         end
-        vIC[j] = argmin(IC)[1]                      
+        _, ind = findmin(vec(IC))
+        vIC[j] = Int(ind)
     end
     return vIC
 end
 
-function fit(y::Array,p::Int64)
+function fit(y::AbstractArray,p::Int64)
     (T,K) = size(y)
     T < K && error("error: there are more covariates than observation")
     X = y
@@ -274,7 +285,7 @@ function fit(y::Array,p::Int64)
     return y',Y,X,β,ϵ,Σ,p
 end
 
-function fit(y::Array,p::Int64,inter::Intercept)
+function fit(y::AbstractArray,p::Int64,inter::Intercept)
     (T,K) = size(y)
     T < K && error("error: there are more covariates than observation")
     X = y
@@ -287,12 +298,12 @@ function fit(y::Array,p::Int64,inter::Intercept)
     return y',Y,X,β,ϵ,Σ,p
 end
 
-function lagmatrix(x::Array,p::Int64,inter::Intercept)
+function lagmatrix(x::AbstractArray,p::Int64,inter::Intercept)
     sk = 1
     T, K = size(x)
     k    = K*p+1
     idx  = repeat(1:K, p)
-    X    = Array{Float64}(undef,T-p, k)
+    X    = Array{eltype(x)}(undef, (T-p, k))
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -306,12 +317,12 @@ function lagmatrix(x::Array,p::Int64,inter::Intercept)
     return X
 end
 
-function lagmatrix(x::Array,p::Int64)
+function lagmatrix(x::AbstractArray,p::Int64)
     sk = 1
     T, K = size(x)
     k    = K*p+1
     idx  = repeat(1:K, p)
-    X    = Array{Float64}(undef,T-p, k)
+    X    = Array{eltype(x)}(undef, (T-p, k))
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -322,13 +333,13 @@ function lagmatrix(x::Array,p::Int64)
     return X[:,2:end]
 end
 
-function lagmatrix(x::Vector,p::Int64)
+function lagmatrix(x::AbstractVector,p::Int64)
     sk = 1
     T = length(x)
     K = 1
     k    = K*p+1
     idx  = repeat(1:K, p)
-    X    = Array{Float64}(undef,T-p, k)
+    X    = Array{eltype(x)}(undef, (T-p, k))
     # building X (t-1:t-p) allocating data from D matrix - avoid checking bounds
     for j = 1+sk:(sk+K*p)
         for i = 1:(T-p)
@@ -348,14 +359,19 @@ end
 function duplication(n::Int64)
     # Returns Magnus and Neudecker's duplication matrix of size n
     # VERY AMBIGUOUS FUNC
-    a = tril(ones(n,n))::Array{Float64}
-    i = LinearIndices(a)[findall(x->x!=0, a)]
-    a[i] = 1:size(i,1)
-    a = a + tril(a,-1)'
-    j = convert(Vector{Int64}, vec(a))::Vector{Int64}
+    a = LowerTriangular(ones(n, n))
+    inds = (a .== 1) # find(a)::Vector{Int64}
+    a[inds] .= 1:Int(sum(inds))
+    aT = transpose(a) - I
+    for i in 1:n
+        aT[i, i] = 0
+    end
+    a = a + aT
+    j = Int.(vec(a)) #convert(Vector{Int64}, vec(a))::Vector{Int64}
     m = trunc.(Int,(n*(n+1)/2))::Int64
     d = zeros(n*n,m)
     for r = 1:size(d,1)
+        r, j[r]
         d[r, j[r]] = 1.0
     end
     return d
@@ -374,9 +390,9 @@ function elimat(m::Int64)
     return L
 end
 
-function var_lagorder(z::Array,pbar::Int64,ic::String)
+function var_lagorder(z::AbstractArray,pbar::Int64,ic::String)
     T,K = size(z)::Tuple{Int64,Int64}
-    t   = convert(Float64,T-pbar)
+    t   = Int(T-pbar)
     IC  = zeros(pbar,1)
     Y = z[pbar+1:T,:]                           # dependent variable
     for p = 1:pbar
@@ -386,7 +402,7 @@ function var_lagorder(z::Array,pbar::Int64,ic::String)
         end
         β  = (X'*X)\(X'*Y)                    # estimate by multivariate LS **
         u     = Y-X*β                         # errors
-        Σ   = (u'*u/t)::Array{Float64}
+        Σ   = (u'*u/t)::AbstractArray{Float64}
         if ic == "aic"                           # variance of errors
             IC[p]     = log(det(Σ))+2*p*K^2/t                      # AIC statistic
         elseif ic == "bic"
@@ -399,21 +415,21 @@ function var_lagorder(z::Array,pbar::Int64,ic::String)
         elseif error("ic must be aic, bic, aicc or hqc")
         end
     end
-    length_ic = argmin(IC)[1]
+    _, length_ic = findmin(vec(IC))
     println("Using $ic the best lag-length is $length_ic")
-    return length_ic
+    return Int(length_ic)
 end
 
 function get_VAR1_rep(V::VAR)
     K = size(V.Σ,1)
-    B = vcat(V.β, hcat(Matrix(1.0I,K*(V.p-1),K*(V.p-1)), zeros(K*(V.p-1),K))::Array{Float64,2})::Array{Float64,2}
+    B = vcat(V.β, hcat(eye(K*(V.p-1)), zeros(K*(V.p-1),K))::AbstractArray{Float64,2})::AbstractArray{Float64,2}
     B = convert(Array{Float64,2},B)
 end
 
 function get_VAR1_rep(V::VAR,inter::Intercept)
     K = size(V.Σ,1)
     # v = [V.β[:,1]; zeros(K*(V.p-1),1)]
-    B = vcat(V.β[:,2:end], hcat(Matrix(1.0I,K*(V.p-1),K*(V.p-1)), zeros(K*(V.p-1),K)))::Array{Float64,2}
+    B = vcat(V.β[:,2:end], hcat(eye(K*(V.p-1)), zeros(K*(V.p-1),K)))::AbstractArray{Float64,2}
     B = convert(Array{Float64,2},B)
 end
 
@@ -422,9 +438,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64)
     SIGa = kron(inv(V.X*V.X'/(T-V.p)),V.Σ)
     # Calculation of stdev follows Lutkepohl(2005) p.111,93
     A = get_VAR1_rep(V)
-    # A0inv = cholfact(V.Σ)[:L]
-    A0inv = cholesky(V.Σ, Val(false))
-    A0inv = A0inv.L
+    A0inv = cholesky(V.Σ).L
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
     J = [Matrix(1.0I,K,K)  zeros(K,K*(V.p-1))]
@@ -456,9 +470,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
     SIGa = SIGa[K+1:end,K+1:end]
     # Calculation of stdev follows Lutkepohl(2005) p.111,93
     A = get_VAR1_rep(V,V.inter)
-    # A0inv = cholfact(V.Σ)[:L]
-    A0inv = cholesky(V.Σ, Val(false))
-    A0inv = A0inv.L
+    A0inv = cholesky(V.Σ).L
     STD   = zeros(K^2,H+1)
     COV2   = zeros(K^2,H+1)
     J = [Matrix(1.0I,K,K)  zeros(K,K*(V.p-1))]
@@ -485,7 +497,7 @@ function irf_ci_asymptotic(V::VAR, H::Int64, inter::Intercept)
 end
 
 get_boot_init_int_draw(T::Int64,p::Int64) = Int64(trunc.((T-p+1)*rand()+1))
-get_boot_init_vector_draw(T::Int64,p::Int64) = Array{Int64}(trunc.((T-p)*rand(T-p).+1))
+get_boot_init_vector_draw(T::Int64,p::Int64) = Array{Int64}(trunc.((T-p)*rand(T-p) .+ 1))
 
 function build_sample(V::VAR)
     K,T = size(V.Y)::Tuple{Int64,Int64}
@@ -525,8 +537,8 @@ function build_sample(V::VAR,inter::Intercept)
     return y
 end
 
-col_mean(x::Array) = mean(x,dims=2)
-test_bias_correction(x::Array) =  any(abs.(eigvals(x)).<1)
+col_mean(x::AbstractArray) = mean(x, dims = 2)
+test_bias_correction(x::AbstractArray) =  any(abs.(eigvals(x)).<1)
 
 function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool,inter::Intercept)
     K,T = size(V.Y)::Tuple{Int64,Int64}
@@ -539,7 +551,7 @@ function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool,inter::Int
         Vr = VAR(yr,V.p,true)
         # Bias correction: if the largest root of the companion matrix
         # is less than 1, do BIAS correction
-        mVar1 = get_VAR1_rep(Vr,V.inter)::Array{Float64,2}
+        mVar1 = get_VAR1_rep(Vr,V.inter)::AbstractArray{Float64,2}
         bBias_corr_test = test_bias_correction(mVar1)
         if all([bDo_bias_corr, bBias_corr_test])
             mVar1 = bias_correction(Vr,mVar1)
@@ -561,7 +573,7 @@ function get_boot_ci(V::VAR,H::Int64,nrep::Int64, bDo_bias_corr::Bool)
         Vr = VAR(yr,V.p,false)
         # Bias correction: if the largest root of the companion matrix
         # is less than 1, do BIAS correction
-        mVar1 = get_VAR1_rep(Vr)::Array{Float64,2}
+        mVar1 = get_VAR1_rep(Vr)::AbstractArray{Float64,2}
         bBias_corr_test = test_bias_correction(mVar1)
         if all([bDo_bias_corr, bBias_corr_test])
             mVar1 = bias_correction(Vr,mVar1)
@@ -574,22 +586,22 @@ end
 
 function get_companion_vcv(V::VAR)
     K,T = size(V.Y)::Tuple{Int64,Int64}
-    mSigma = vcat(hcat(V.Σ, zeros(K,K*V.p-K)), zeros(K*V.p-K,K*V.p))::Array{Float64,2}
+    mSigma = vcat(hcat(V.Σ, zeros(K,K*V.p-K)), zeros(K*V.p-K,K*V.p))::AbstractArray{Float64,2}
     mSigma = convert(Array{Float64,2},mSigma)
 end
 
-function get_sigma_y(V::VAR, mVar1::Array, mSigma::Array)
+function get_sigma_y(V::VAR, mVar1::AbstractArray, mSigma::AbstractArray)
     K,T = size(V.Y)::Tuple{Int64,Int64}
-    vSigma = (Matrix(1.0I,(K*V.p)^2,(K*V.p)^2)::Array{Float64,2}-kron(mVar1,mVar1)::Array{Float64,2})\vec(mSigma)::Vector{Float64}    # Lutkepohl p.29 (2.1.39)
-    mSigma_y = reshape(vSigma, K*V.p::Int64, K*V.p::Int64)::Array{Float64,2}
+    vSigma = (eye((K*V.p)^2) - kron(mVar1,mVar1)) \ vec(mSigma)    # Lutkepohl p.29 (2.1.39)
+    mSigma_y = reshape(vSigma, K*V.p::Int64, K*V.p::Int64)
     return convert(Array{Float64,2},mSigma_y)
 end
 
-function get_bias(mSigma::Array,mSigma_y::Array,B::Array,I::Array,mSum_eigen::Array)
+function get_bias(mSigma::AbstractArray,mSigma_y::AbstractArray,B::AbstractArray,I::AbstractArray,mSum_eigen::AbstractArray)
     return mBias = mSigma*(inv(I - B) + B/(I-B^2) + mSum_eigen)/(mSigma_y)
 end
 
-function bias_correction(V::VAR,mVar1::Array)
+function bias_correction(V::VAR,mVar1::AbstractArray)
     # Bias-correction Pope (1990)
     K,T = size(V.Y)::Tuple{Int64,Int64}
     mSigma = get_companion_vcv(V)
@@ -606,7 +618,7 @@ function bias_correction(V::VAR,mVar1::Array)
     return mBcA = get_proportional_bias_corr(mVar1,mAbias)
 end
 
-function get_proportional_bias_corr(mVar1::Array,Abias::Array;iBc_stab::Int64 = 9, iδ::Int64 = 1)
+function get_proportional_bias_corr(mVar1::AbstractArray,Abias::AbstractArray;iBc_stab::Int64 = 9, iδ::Int64 = 1)
     mBcA = zeros(size(mVar1))
     while iBc_stab >= 1
         # Adjust bias-correction proportionately
@@ -619,7 +631,7 @@ function get_proportional_bias_corr(mVar1::Array,Abias::Array;iBc_stab::Int64 = 
     return mBcA
 end
 
-function get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+function get_boot_conf_interval(mIRFbc::AbstractArray,H::Int64,K::Int64)
     N = size(mIRFbc,2)
     mCILv = zeros(1,N)
     mCIHv = zeros(1,N)
@@ -638,7 +650,7 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64; bDo_bias_corr::Bool=tru
     u = V.ϵ*iScale_ϵ   # rescaling residual (Stine, JASA 1987)
     mIRFbc = get_boot_ci(V,H,nrep,bDo_bias_corr)
     # Calculate 95 perccent interval endpoints
-    mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+    mCIL, mCIH = get_boot_conf_interval(mIRFbc::AbstractArray,H::Int64,K::Int64)
     return CIs_boot(mCIL,mCIH)
 end
 
@@ -648,16 +660,14 @@ function irf_ci_bootstrap(V::VAR, H::Int64, nrep::Int64, inter::Intercept; bDo_b
     u = V.ϵ*iScale_ϵ   # rescaling residual (Stine, JASA 1987)
     mIRFbc = get_boot_ci(V,H,nrep,bDo_bias_corr,V.inter)
     # Calculate 95 perccent interval endpoints
-    mCIL, mCIH = get_boot_conf_interval(mIRFbc::Array,H::Int64,K::Int64)
+    mCIL, mCIH = get_boot_conf_interval(mIRFbc::AbstractArray,H::Int64,K::Int64)
     return CIs_boot(mCIL,mCIH)
 end
 
-function irf_chol(V::VAR, mVar1::Array, H::Int64)
+function irf_chol(V::VAR, mVar1::AbstractArray, H::Int64)
     K = size(V.Σ,1)
-    # mSigma = cholfact(V.Σ)[:L]::LowerTriangular  # Cholesky or reduced form
-    mSigma = cholesky(V.Σ, Val(false))
-    mSigma = mSigma.L
-    J = [Matrix(1.0I,K,K) zeros(K,K*(V.p-1))]
+    mSigma = cholesky(V.Σ).L::LowerTriangular  # Cholesky or reduced form
+    J = [eye(K,K) zeros(K,K*(V.p-1))]
     mIRF = zeros(K^2,H+1)
     mIRF[:,1] = reshape((J*mVar1^0*J'*mSigma)',K^2,1)
     for i = 1:H
@@ -666,7 +676,7 @@ function irf_chol(V::VAR, mVar1::Array, H::Int64)
     return mIRF
 end
 
-function irf_reduce_form(V::VAR, mVar1::Array, H::Int64)
+function irf_reduce_form(V::VAR, mVar1::AbstractArray, H::Int64)
     K = size(V.Σ,1)
     mSigma = Matrix(1.0I,K,K)
     J = [Matrix(1.0I,K,K) zeros(K,K*(V.p-1))]
@@ -678,7 +688,7 @@ function irf_reduce_form(V::VAR, mVar1::Array, H::Int64)
     return mIRF
 end
 
-function irf_ext_instrument(V::VAR,Z::Array{Float64,2},H::Int64,intercept::Bool)
+function irf_ext_instrument(V::VAR,Z::AbstractArray,H::Int64,intercept::Bool)
     # Version improved by G. Ragusa
     y,B,Σ,U,p = V.Y',V.β,V.Σ,V.ϵ,V.p
     (T,K) = size(y)
@@ -720,17 +730,17 @@ function irf_ext_instrument(V::VAR,Z::Vector{Float64},H::Int64,intercept::Bool)
     return IRF
 end
 
-function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,intercept::Bool)
+function irf_ci_wild_bootstrap(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64,α::AbstractArray,intercept::Bool)
     # Wild Bootstrap
     # Version improved by G. Ragusa
     y,Y,A,u,p = V.mData,V.Y',V.β,V.ϵ,V.p
     count = 1
     (T,K) = size(y)
     (T_z, K_z) = size(Z)
-    IRFS = GrowableArray(Matrix{Float64}(undef,H+1, K))
-    CILv = Array{Float64}(undef,length(α), size(IRFS,2))
+    IRFS = GrowableArray(Matrix{Float64}(H+1, K))
+    CILv = Array{Float64}(undef, (length(α), size(IRFS,2)))
     CIHv = similar(CILv)
-    lower_bound = Array{Float64}(undef,H+1, length(α))
+    lower_bound = Array{Float64}(undef, (H+1, length(α)))
     upper_bound = similar(lower_bound)
     res = u' 
     oneK = ones(1,K)
@@ -743,7 +753,7 @@ function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,in
         Awc = A
         Ac = zeros(A[:,1])
     end
-    rr  = Array{Int16}(undef,T)
+    rr  = Array{Int16}(undef, T)
     while count < nrep+1
         rand!(rr, [-1, 1])        
         resb = res.*rr[p+1:end]
@@ -764,7 +774,7 @@ function irf_ci_wild_bootstrap(V::VAR,Z::Array,H::Int64,nrep::Int64,α::Array,in
         push!(IRFS, IRFr)
         count += 1
     end
-    CIl = Array{Float64}(undef,length(α), H+1,K)
+    CIl = Array{Float64}(undef, (length(α), H+1, K))
     CIh = similar(CIl)
     for i in 1:K
         # FIX THIS POINT--AT THE MOMENT ONLY FIRST VARIABLE CI
@@ -785,26 +795,13 @@ function t_test(V::VAR)
     return T
 end
 
-function gen_var1_data!(y::Array,B::Array,Σ,burnin::Int64)
+function gen_var1_data!(y::AbstractArray,mR::AbstractArray,mP,burnin::Int64)
     T,K = size(y)
     for j = 2:T                          
         y[j,:] = B*y[j-1,:] + Σ*randn(K,1)   
     end
     y = y[burnin+1:end,:]                      
-    return y .- mean(y,dims=1)
-end
-
-function gen_var_p_data!(y,B,Σ,p,burn)
-    T,K = size(y)
-    u = randn(T,K)
-    for i = p+1:T
-        y[i,:] = (B[:,1]+Σ*u[i,:])'
-        for jj = 1:p
-            y[i,:] = y[i,:] + (B[:,(jj-1)*K+2:jj*K+1]*y[i-jj,:])
-        end
-    end
-    y = y[burn+1:end,:]                          # discarding initial obs
-    y = y .- mean(y,dims=1)
+    return y .- mean(y, dims = 1)
 end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!

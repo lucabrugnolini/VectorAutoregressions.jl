@@ -1,6 +1,7 @@
 # VectorAutoregressions.jl
 Vector autoregressive models for Julia
 
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://github.com/lucabrugnolini/VectorAutoregressions.jl/stable)
 [![Build Status](https://travis-ci.org/lucabrugnolini/VectorAutoregressions.jl.svg?branch=master)](https://travis-ci.org/lucabrugnolini/VectorAutoregressions.jl)
 [![Coverage Status](https://coveralls.io/repos/github/lucabrugnolini/VectorAutoregressions.jl/badge.svg?branch=master)](https://coveralls.io/github/lucabrugnolini/VectorAutoregressions.jl?branch=master)
 [![codecov](https://codecov.io/gh/lucabrugnolini/VectorAutoregressions.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/lucabrugnolini/VectorAutoregressions.jl)
@@ -79,7 +80,7 @@ gui(pIRF_boot)
 
 More in details, `y` is a matrix with data, `p` is the lag-length of the VAR we fit to the data and `i` is a Boolean for including an intercept (default is true). `VAR(y,p,intercept)` returns a fitted VAR(`p`) model in `V` with the following structure:
 ```julia
-type VAR
+struct VAR
   Y::Array # dep. variables
   X::Array # covariates
   β::Array # parameters
