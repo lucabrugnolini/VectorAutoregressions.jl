@@ -4,7 +4,7 @@
 
 module VectorAutoregressions
 using Parameters, GrowableArrays, LinearAlgebra, Statistics
-using Random: rand
+using Random
 using Statistics: mean, std, quantile
 using LinearAlgebra: I, cholesky, LowerTriangular, diag, eigvals, det
 

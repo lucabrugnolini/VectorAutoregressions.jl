@@ -12,7 +12,6 @@ using DelimitedFiles: readdlm
 path = joinpath(dirname(pathof(VectorAutoregressions)), "..")
 
 #--------------------Load Data-------------------------------------------
-# X,names = readdlm("/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/test/gertler_karadi_var_data.csv",',',header=true)
 X,names = readdlm(joinpath(path,"test","gertler_karadi_var_data.csv"),',',header=true)
 
 #-------------------Setting-up the variables-----------------------------
