@@ -9,7 +9,8 @@ using DelimitedFiles, LinearAlgebra, Statistics, GrowableArrays
 # path = Pkg.dir("VectorAutoregressions")
 # import VectorAutoregressions; 
 # joinpath(dirname(pathof(VectorAutoregressions)), "..", paths...)
-path = "/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/"
+# path = "/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/"
+path = joinpath(dirname(pathof(VectorAutoregressions)), "..")
 #-----------Load data----------------------------------------------
 y      = readdlm(joinpath(path,"test","lp_data.csv"),',')
 irfv   = readdlm(joinpath(path,"test","lp_test_var_irf.csv"),',')
@@ -48,6 +49,6 @@ V = VAR(y,p_var,true)
 A0inv = V.Σ |> λ -> Array((cholesky(λ)).L)
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
-mIRFs = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
+mIRFs,_ = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
 IRF,CI = mIRFs.IRF, mIRFs.CI
 CIl,CIh = CI.CIl, CI.CIh

@@ -104,7 +104,7 @@ function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}
     mStd = sqrt.(cov_mIRF+cov_Σ)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
-    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh)), mStd
 end
 
 function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}, H::Int64)
@@ -132,7 +132,7 @@ function IRFs_localprojection(z::AbstractArray{Float64}, p::AbstractArray{Int64}
     mStd = sqrt.(cov_mIRF)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
-    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh)), mStd
 end
 
 function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64, A0inv::AbstractArray{Float64},cov_Σ::AbstractArray{Float64})
@@ -189,7 +189,7 @@ function IRFs_localprojection(z::AbstractArray{Float64}, p::Int64, H::Int64)
     mStd = sqrt.(cov_mIRF)    
     mCIl = mIRF - 1.96.*mStd
     mCIh = mIRF + 1.96.*mStd
-    return IRFs(mIRF,CIs_asy(mCIl, mCIh))
+    return IRFs(mIRF,CIs_asy(mCIl, mCIh)), mStd
 end
 
 function newey_west(ys::AbstractArray,yt::AbstractArray,Mx::AbstractArray,β::AbstractArray,h::Int64)
