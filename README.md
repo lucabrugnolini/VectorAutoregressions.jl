@@ -38,7 +38,7 @@ This package is a work in progress for the estimation and identification of Vect
       - [x] Bootstrap
       - [x] Bootstrap-after-bootstrap
   - [ ] Forecasting
-    - [ ] BVAR
+    - [x] BVAR
     - [ ] FAVAR
 - [ ] Local projection IRFs
     - [ ] Lag-length selection
@@ -50,9 +50,16 @@ This package is a work in progress for the estimation and identification of Vect
 ## Example
 ```julia
 ## Example: fit a VAR(`p`) to the data and derive structural IRFs with asymptotic and bootstrap conf. bands.
-using VectorAutoregressions, Plots
+using VectorAutoregressions
+using DelimitedFiles: readdlm
+using Plots
+plotly()
 
-y = readdlm(joinpath(Pkg.dir("VectorAutoregressions"),"test","cholvar_test_data.csv"), ',') #read example file with data
+# Read example data
+path = joinpath(dirname(pathof(VectorAutoregressions)), "..") # set base path to load data
+y = readdlm(joinpath(path,"test","cholvar_test_data.csv"), ',') #read example file with data
+
+# Set VAR parameters
 intercept = false #intercept in the estimation
 p = 2 #select lag-length
 H = 15 # IRFs horizon
@@ -62,11 +69,11 @@ nrep = 500 #bootstrap sample
 V = VAR(y,p,intercept)
 
 # Estimate IRFs - Cholesky identification
-T,K = size(y)
 mIRFa = IRFs_a(V,H,intercept) #asymptotic conf. bandf
 mIRFb = IRFs_b(V,H,nrep,intercept) #bootstrap conf. bands
 
 # Plot irf + asy ci
+T,K = size(y)
 pIRF_asy = plot(layout = grid(K,K));
 [plot!(pIRF_asy, [mIRFa.CI.CIl[i,:] mIRFa.IRF[i,:] mIRFa.CI.CIh[i,:]], color = ["red" "red" "red"],
 line = [:dash :solid :dash], legend = false, subplot = i) for i in 1:K^2]
