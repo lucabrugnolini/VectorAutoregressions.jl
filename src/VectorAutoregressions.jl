@@ -3,17 +3,10 @@
 # Kilian and Kim 2011, Cremfi codes, Geertler and Karadi 2015
 
 module VectorAutoregressions
-using Parameters, GrowableArrays, LinearAlgebra, Statistics, Random
-
+using Parameters, GrowableArrays, LinearAlgebra, Statistics
+using Random: rand
 using Statistics: mean, std, quantile
 using LinearAlgebra: I, cholesky, LowerTriangular, diag, eigvals, det
-eye(n) = float.(I(n))
-function eye(n, m)
-    out = zeros(n, m)
-    n = min(n, m)
-    out[1:n, 1:n] .= eye(n)
-    out
-end
 
 struct Intercept end
 
@@ -737,7 +730,7 @@ function irf_ci_wild_bootstrap(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64,α::
     count = 1
     (T,K) = size(y)
     (T_z, K_z) = size(Z)
-    IRFS = GrowableArray(Matrix{Float64}(H+1, K))
+    IRFS = GrowableArray(Matrix{Float64}(undef, H+1, K))
     CILv = Array{Float64}(undef, (length(α), size(IRFS,2)))
     CIHv = similar(CILv)
     lower_bound = Array{Float64}(undef, (H+1, length(α)))
@@ -753,7 +746,7 @@ function irf_ci_wild_bootstrap(V::VAR,Z::AbstractArray,H::Int64,nrep::Int64,α::
         Awc = A
         Ac = zeros(A[:,1])
     end
-    rr  = Array{Int16}(undef, T)
+    rr  = Array{Int16}(undef, T,1)
     while count < nrep+1
         rand!(rr, [-1, 1])        
         resb = res.*rr[p+1:end]
@@ -802,6 +795,15 @@ function gen_var1_data!(y::AbstractArray,B::AbstractArray,Σ::AbstractArray,burn
     end
     y = y[burnin+1:end,:]                      
     return y .- mean(y, dims = 1)
+end
+
+eye(n) = float.(I(n))
+
+function eye(n, m)
+    out = zeros(n, m)
+    n = min(n, m)
+    out[1:n, 1:n] .= eye(n)
+    out
 end
 
 export VAR, IRFs_a, IRFs_b, IRFs_ext_instrument, IRFs_localprojection, gen_var1_data!
