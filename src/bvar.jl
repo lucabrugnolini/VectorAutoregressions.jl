@@ -1,4 +1,4 @@
-using Parameters, GrowableArrays, StatsBase, SpecialFunctions, LinearAlgebra, Statistics, Random, DelimitedFiles
+using Parameters, GrowableArrays, StatsBase, SpecialFunctions, LinearAlgebra, Statistics, Random
 
 #TODO: change bVAR --> VAR
 # function bVAR(y::Array,p::Int64,i::Bool,reps::Int64,burn::Int64,max_try::Int64,prior::Hyperparameter)
