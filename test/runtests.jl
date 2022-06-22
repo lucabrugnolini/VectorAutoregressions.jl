@@ -121,7 +121,7 @@ const vP = p*ones(Int64,H) # vector of lag-length
 
 @testset "Local projections (II)" begin
 #-----------Reduced form local projection IRFs-------------------
-RF_IRFs = IRFs_localprojection(y, vP, H)
+RF_IRFs,_ = IRFs_localprojection(y, vP, H)
 mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
 
 #-----------Structural local projection IRFs-------------------
@@ -130,7 +130,7 @@ V = VAR(y,p,intercept)
 A0inv = V.Σ |> λ -> cholesky(λ).L |> Matrix
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
-IRF = IRFs_localprojection(y, vP, H, A0inv, mCov_Σ)
+IRF,_ = IRFs_localprojection(y, vP, H, A0inv, mCov_Σ)
 mIRF,CI = IRF.IRF, IRF.CI
 CIl,CIh = CI.CIl, CI.CIh
 
