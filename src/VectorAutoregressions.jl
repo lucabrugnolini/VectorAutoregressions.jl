@@ -795,7 +795,7 @@ function t_test(V::VAR)
     return T
 end
 
-function gen_var1_data!(y::AbstractArray,mR::AbstractArray,mP,burnin::Int64)
+function gen_var1_data!(y::AbstractArray,B::AbstractArray,Σ::AbstractArray,burnin::Int64)
     T,K = size(y)
     for j = 2:T                          
         y[j,:] = B*y[j-1,:] + Σ*randn(K,1)   
