@@ -6,11 +6,8 @@ using VectorAutoregressions
 using DelimitedFiles, LinearAlgebra, Statistics, GrowableArrays
 
 #-----------set base-path------------------------------------------
-# path = Pkg.dir("VectorAutoregressions")
-# import VectorAutoregressions; 
-# joinpath(dirname(pathof(VectorAutoregressions)), "..", paths...)
-# path = "/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/"
 path = joinpath(dirname(pathof(VectorAutoregressions)), "..")
+
 #-----------Load data----------------------------------------------
 y      = readdlm(joinpath(path,"test","lp_data.csv"),',')
 irfv   = readdlm(joinpath(path,"test","lp_test_var_irf.csv"),',')

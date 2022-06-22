@@ -54,16 +54,16 @@ end
 
 #--------------------Test BVAR model---------------------------------------------------------
 # comparison against http://cremfi.econ.qmul.ac.uk/outgoing/bvar.zip
-#= include(joinpath(path,"src","bvar.jl")) 
+include(joinpath(path,"src","bvar.jl")) 
 y = readdlm(joinpath(path,"test","bvar_data.csv"), ',')
 y = y[:,1:3]
 prior = Hyperparameter()
 mForecast = fit_bvar(y,prior)
 
-@test isapprox([0.8510 1.4081 2.2570 2.3415 2.4622 2.5835 2.6867 2.5790 2.5897 2.5767],median(mForecast[:,:,1],1); atol = 1)
-@test isapprox([1.9614 2.2587 1.8328 1.8745 2.0870 2.2014 2.3303 2.5225 2.5453 2.59387],median(mForecast[:,:,2],1); atol = 1)
-@test isapprox([-0.3827 -0.2272 -0.1532 -0.0735 0.0784 0.1620 0.3764 0.5247 0.7264 0.8861],median(mForecast[:,:,3],1); atol = 1)
- =#
+@test isapprox([0.8510 1.4081 2.2570 2.3415 2.4622 2.5835 2.6867 2.5790 2.5897 2.5767],median(mForecast[:,:,1],dims=1); atol = 1)
+@test isapprox([1.9614 2.2587 1.8328 1.8745 2.0870 2.2014 2.3303 2.5225 2.5453 2.59387],median(mForecast[:,:,2],dims=1); atol = 1)
+@test isapprox([-0.3827 -0.2272 -0.1532 -0.0735 0.0784 0.1620 0.3764 0.5247 0.7264 0.8861],median(mForecast[:,:,3],dims=1); atol = 1)
+
 #--------------------Test Local Projection IRFs---------------------------------------------------------
 # comparison against Kilian and Kim (2011) generated data from VAR(12)
 
@@ -84,7 +84,7 @@ const intercept = true
 
 @testset "Local projection IRFs" begin
 #-----------Reduced form local projection IRFs-------------------
-RF_IRFs = IRFs_localprojection(y, p, H)
+RF_IRFs,_ = IRFs_localprojection(y, p, H)
 mRFIRFs,CI = RF_IRFs.IRF, RF_IRFs.CI
 
 #-----------Structural local projection IRFs-------------------
@@ -93,7 +93,7 @@ V = VAR(y,p,intercept)
 A0inv = V.Σ |> λ -> cholesky(λ).L |> Matrix
 mStd,mCov_Σ = irf_ci_asymptotic(V, H, V.inter)
 
-IRF = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
+IRF,_ = IRFs_localprojection(y, p, H, A0inv, mCov_Σ)
 mIRF,CI = IRF.IRF, IRF.CI
 CIl,CIh = CI.CIl, CI.CIh
 
