@@ -3,12 +3,17 @@
 #---------------------Load Packages--------------------------------------
 using VectorAutoregressions
 using Plots
-pyplot()
+plotly()
 using Random, LinearAlgebra 
-using Statistics, DelimitedFiles, GrowableArrays
+using Statistics, GrowableArrays
+using DelimitedFiles: readdlm
+
+#-----------Set base-path------------------------------------------
+path = joinpath(dirname(pathof(VectorAutoregressions)), "..")
 
 #--------------------Load Data-------------------------------------------
-X,names = readdlm("/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/test/gertler_karadi_var_data.csv",',',header=true)
+# X,names = readdlm("/home/lbrugnol/Dropbox/my_code/VectorAutoregressions.jl/test/gertler_karadi_var_data.csv",',',header=true)
+X,names = readdlm(joinpath(path,"test","gertler_karadi_var_data.csv"),',',header=true)
 
 #-------------------Setting-up the variables-----------------------------
 Y = convert(Array{Float64},X[:,3:6])
@@ -27,14 +32,14 @@ V = VAR(Y,p,intercept)
 mIRFa = IRFs_a(V,H,intercept)
 
 pIRF_asy = plot(layout = grid(K,1));
-count = 0
-for i in collect(3:K:15)
-    count +=1
-plot!(pIRF_asy, [mIRFa.IRF[i,:] mIRFa.CI.CIl[i,:] mIRFa.CI.CIh[i,:]], color = ["red" "red" "red"],
-line = [:solid :dash :dash], legend = false, label = ["cholesky"], subplot = count)
+let counter = 0
+    for i in collect(3:K:15)
+        counter +=1
+        plot!(pIRF_asy, [mIRFa.IRF[i,:] mIRFa.CI.CIl[i,:] mIRFa.CI.CIh[i,:]], color = ["red" "red" "red"],
+        line = [:solid :dash :dash], legend = false, label = ["cholesky"], subplot = counter)
+    end
+    gui(pIRF_asy)
 end
-gui(pIRF_asy)
-
 #-------------External instrument VAR-------------------------------------
 Y_z = Y[:,[3, 1, 2, 4]] # fedfund first
 V = VAR(Y_z,p,intercept)
@@ -43,6 +48,6 @@ IRF = IRFs_ext_instrument(V, Z, H, nrep, α, intercept)
 
 pIRF = plot(layout = grid(4,1));
 for i in [3 1 2 4]
-plot!(pIRF,[IRF.IRF[:,i] IRF.CI.CIl[4,:,i] IRF.CI.CIh[4,:,i]], subplot = i, legend = false, color = ["blue" "blue" "blue"], line = [:solid :dash :dash])
+    plot!(pIRF,[IRF.IRF[:,i] IRF.CI.CIl[4,:,i] IRF.CI.CIh[4,:,i]], subplot = i, legend = false, color = ["blue" "blue" "blue"], line = [:solid :dash :dash])
 end
 gui(pIRF)
